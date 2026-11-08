@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tropa AI · ejemplo mínimo</title>
+<link rel="stylesheet" href="tropa-animaciones.css">
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; gap: 16px; background: #121116; color: #ece7df; font-family: system-ui, sans-serif }
+  select { font: inherit; padding: 8px 12px; border-radius: 10px }
+</style>
+</head>
+<body>
+<div style="display:grid;gap:16px;justify-items:center">
+  <!-- Un agente. Cambia la clase s-… para cambiar de estado. -->
+  <svg id="agente" class="av s-idle" width="200" height="200" viewBox="0 0 160 160" role="img" aria-label="Agente en espera">
+    <defs>
+      <filter id="rz" x="-20%" y="-20%" width="140%" height="140%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="5" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="2.8" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+    </defs>
+    <g class="body-g">
+      <path d="M64 47 H96 A32 32 0 0 1 128 79 A32 32 0 0 1 96 111 H64 A32 32 0 0 1 32 79 A32 32 0 0 1 64 47 Z" fill="#8b5cf6"/>
+      <path d="M64 47 H96 A32 32 0 0 1 128 79 A32 32 0 0 1 96 111 H64 A32 32 0 0 1 32 79 A32 32 0 0 1 64 47 Z" fill="none" stroke="#ece7df" stroke-width="2.4" filter="url(#rz)"/>
+      <g class="eyes">
+        <circle class="eye" cx="68" cy="79" r="5.5" fill="#fff"/>
+        <circle class="eye" cx="92" cy="79" r="5.5" fill="#fff"/>
+      </g>
+    </g>
+    <!-- Elementos extra de cada estado (puntos, lupa, check…): ver demo.html -->
+  </svg>
+  <label>Estado
+    <select id="estado">
+      <option value="idle">En espera</option><option value="think">Pensando</option>
+      <option value="work">Ejecutando</option><option value="write">Escribiendo</option>
+      <option value="ask">Necesita tu respuesta</option><option value="done">Tarea hecha</option>
+      <option value="error">Algo falló</option><option value="sleep">En pausa</option>
+    </select>
+  </label>
+</div>
+<script>
+  const a = document.getElementById('agente');
+  document.getElementById('estado').addEventListener('change', e => {
+    a.setAttribute('class', 'av s-' + e.target.value);
+    a.setAttribute('aria-label', 'Agente: ' + e.target.selectedOptions[0].text);
+  });
+</script>
+</body>
+</html>

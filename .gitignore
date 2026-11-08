@@ -1,0 +1,13 @@
+data/
+.env
+node_modules/
+
+dist/
+release-native/
+desktop/stage/
+desktop/node_modules/
+__pycache__/
+docs/*.png
+
+# Requiere autorización workflow de GitHub para publicarse
+.github/workflows/

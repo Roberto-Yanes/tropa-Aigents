@@ -1,0 +1,74 @@
+{
+  "name": "agentes-comunidad-desktop",
+  "version": "0.1.0",
+  "description": "Equipos de agentes con tus cuentas de IA",
+  "author": "Comunidad Agentes",
+  "private": true,
+  "license": "Apache-2.0",
+  "main": "main.cjs",
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "org.comunidad.agentes",
+    "productName": "Agentes Comunidad",
+    "asar": true,
+    "directories": {
+      "output": "../release-native"
+    },
+    "files": [
+      "main.cjs",
+      "loading.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "stage/backend",
+        "to": "backend"
+      },
+      {
+        "from": "stage/runtime",
+        "to": "runtime"
+      }
+    ],
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "category": "Office",
+      "maintainer": "Comunidad Agentes",
+      "icon": "icons/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "signAndEditExecutable": false,
+      "icon": "icons/tropa-ai.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "icon": "icons/tropa-ai.icns"
+    },
+    "dmg": {
+      "sign": false
+    },
+    "artifactName": "Agentes-Comunidad-${version}-${os}-${arch}.${ext}",
+    "afterPack": "after-pack.cjs"
+  },
+  "homepage": "http://127.0.0.1:4318",
+  "desktopName": "org.comunidad.agentes.desktop"
+}

@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animaciones de Tropa</title>
+<style>body{margin:0} img{max-width:100%} [hidden]{display:none!important}</style>
+</head>
+<body>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: oscuro de Tropa AI. Arriba controles; rejilla de 9 estados; ciclo completo de una tarea; CSS para copiar. */
+:root {
+  --bg: #121116; --band: #18171d; --card: #1f1d25; --line: #2c2a33; --line-soft: #24222b;
+  --fg: #ece7df; --muted: #b9b4c4; --dim: #a8a3b3; --ink: #ece7df;
+  --accent: #7c3aed; --accent-hi: #8b5cf6; --note: #facc15; --note-ink: #1a1820; --ok: #22c55e; --bad: #f87171;
+  --f-hand: Caveat, "Comic Sans MS", cursive;
+  --f-body: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 16px; line-height: 1.5 }
+:focus-visible { outline: 2px solid var(--note); outline-offset: 3px; border-radius: 6px }
+.wrap { max-width: 1200px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+h1, h2, h3 { margin: 0; text-wrap: balance }
+p { margin: 0 }
+.hand { font-family: var(--f-hand); font-weight: 700 }
+
+header.top { padding-block: 48px 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 20px 28px; justify-content: space-between }
+.brand { display: flex; align-items: center; gap: 16px }
+.brand h1 { font-family: var(--f-hand); font-size: clamp(44px, 6vw, 64px); line-height: 1 }
+.brand p { color: var(--muted); max-width: 52ch }
+
+.controls { display: flex; flex-wrap: wrap; gap: 14px 28px; padding: 18px 20px; background: var(--band); border: 1px solid var(--line-soft); border-radius: 18px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5 }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg) }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+legend { float: left; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-right: 6px }
+.sw { position: relative; width: 30px; height: 30px }
+.sw input, .pill input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer }
+.sw span { display: block; width: 30px; height: 30px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 2px rgba(0,0,0,.25) }
+.sw input:checked + span { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg) }
+.sw input:focus-visible + span { outline: 2px solid var(--note); outline-offset: 4px }
+.pill { position: relative }
+.pill span { display: inline-flex; align-items: center; min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid #3a3644; font-size: 14px; color: var(--muted); cursor: pointer }
+.pill input:checked + span { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600 }
+.pill input:focus-visible + span { outline: 2px solid var(--note); outline-offset: 3px }
+
+section { padding-block: 40px }
+.sec-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; max-width: 70ch }
+.sec-head h2 { font-size: clamp(26px, 3vw, 34px); font-weight: 600; letter-spacing: -.01em }
+.sec-head p { color: var(--muted) }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 18px }
+.state { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 8px }
+.stage { display: grid; place-items: center; height: 200px; border-radius: 16px; background: radial-gradient(circle at 50% 60%, #26232e 0, transparent 70%) }
+.state h3 { font-family: var(--f-hand); font-size: 34px; line-height: 1 }
+.state-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap }
+.chip { font: 12px var(--f-mono); color: var(--dim); border: 1px solid #3a3644; border-radius: 999px; padding: 2px 10px; font-variant-numeric: tabular-nums; white-space: nowrap }
+.state p { font-size: 15px; color: var(--muted) }
+.state code { font: 13px var(--f-mono); color: #d8d2e6 }
+
+.cycle { display: flex; flex-wrap: wrap; gap: 28px; align-items: center; background: var(--band); border: 1px solid var(--line-soft); border-radius: 24px; padding: 28px }
+.cycle-stage { flex: 0 0 auto; width: 240px; height: 240px; display: grid; place-items: center; margin-inline: auto }
+.cycle-stage svg { width: 240px; height: 240px }
+.cycle-side { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px }
+.steps li { font-size: 14px; padding: 8px 14px; border-radius: 999px; border: 1px solid #3a3644; color: var(--dim); transition: background-color .2s ease, color .2s ease }
+.steps li.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600 }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 18px; border-radius: 12px; font: 600 15px/1 var(--f-body); cursor: pointer; border: 1px solid #3a3644; background: transparent; color: var(--fg); width: fit-content }
+.btn:hover { border-color: var(--dim) }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff }
+.btn-primary:hover { background: var(--accent-hi) }
+.now { font-family: var(--f-hand); font-size: 30px; color: var(--note) }
+
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px }
+.rule { border-top: 2px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 4px }
+.rule h3 { font-size: 16px; font-weight: 600 }
+.rule p { font-size: 15px; color: var(--muted) }
+
+.code-box { position: relative; background: #0d0c10; border: 1px solid var(--line); border-radius: 16px; overflow: hidden }
+.code-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--dim) }
+.code-scroll { max-height: 420px; overflow: auto }
+.code-scroll pre { margin: 0; padding: 16px 18px; font: 13px/1.6 var(--f-mono); color: #d8d2e6; white-space: pre }
+footer { padding-block: 32px 48px; color: #8f8a9a; font-size: 13px }
+</style>
+
+<!-- ============ CSS DE LAS ANIMACIONES (lo que se copia a la app) ============ -->
+<style id="anim-css">
+/* Tropa AI · animaciones de estado de los agentes
+   Uso: <svg class="av s-<estado>"> … <g class="body-g"> … </g> … </svg>
+   --k multiplica todas las duraciones (1 = normal). */
+.av { --k: 1; overflow: visible }
+.av .body-g, .av .eye, .av .q, .av .spk, .av .dots circle { transform-box: fill-box }
+.av .body-g { transform-origin: 50% 100% }
+.av .eye { transform-origin: center }
+
+/* En espera: respira y parpadea */
+.s-idle .body-g { animation: tr-breathe calc(3s * var(--k)) ease-in-out infinite }
+.s-idle .eye { animation: tr-blink calc(4s * var(--k)) infinite }
+
+/* Pensando: se balancea, mira arriba y salen puntitos */
+.s-think .body-g { animation: tr-rock calc(2.4s * var(--k)) ease-in-out infinite }
+.s-think .eyes { animation: tr-look calc(3s * var(--k)) ease-in-out infinite }
+.s-think .dots circle { transform-origin: center; animation: tr-dot calc(1.2s * var(--k)) ease-in-out infinite }
+.s-think .dots circle:nth-child(2) { animation-delay: calc(-0.8s * var(--k)) }
+.s-think .dots circle:nth-child(3) { animation-delay: calc(-0.4s * var(--k)) }
+
+/* Buscando: la lupa orbita y los ojos la siguen */
+.s-search .orbit { transform-origin: 80px 80px; animation: tr-orbit calc(2.4s * var(--k)) linear infinite }
+.s-search .eyes { animation: tr-follow calc(2.4s * var(--k)) linear infinite }
+
+/* Ejecutando: bota y garabatea al lado */
+.s-work .body-g { animation: tr-bounce calc(0.6s * var(--k)) ease-in-out infinite }
+.s-work .scrib { stroke-dasharray: 130; animation: tr-scrib calc(1.4s * var(--k)) linear infinite }
+.s-work .mlines { animation: tr-flick calc(0.6s * var(--k)) steps(2) infinite }
+
+/* Escribiendo: el lápiz va dibujando renglones */
+.s-write .body-g { animation: tr-bob calc(0.4s * var(--k)) ease-in-out infinite }
+.s-write .tl { stroke-dasharray: 70; stroke-dashoffset: 70 }
+.s-write .tl1 { animation: tr-type1 calc(3s * var(--k)) linear infinite }
+.s-write .tl2 { animation: tr-type2 calc(3s * var(--k)) linear infinite }
+.s-write .tl3 { animation: tr-type3 calc(3s * var(--k)) linear infinite }
+.s-write .pen { animation: tr-pen calc(3s * var(--k)) linear infinite }
+
+/* Necesita tu respuesta: ladea la cabeza y aparece una "?" */
+.s-ask .body-g { animation: tr-tilt calc(1.8s * var(--k)) ease-in-out infinite }
+.s-ask .q { transform-origin: 50% 100%; animation: tr-pop calc(3.6s * var(--k)) ease-out infinite }
+
+/* Tarea hecha: salta con squash, check y chispas */
+.s-done .body-g { animation: tr-jump calc(1.6s * var(--k)) cubic-bezier(.3, .6, .4, 1) infinite }
+.s-done .check { stroke-dasharray: 70; animation: tr-check calc(1.6s * var(--k)) ease-out infinite }
+.s-done .spk { transform-origin: center; animation: tr-spark calc(1.6s * var(--k)) ease-out infinite }
+
+/* Algo falló: tiembla, ojos en X y nubarrón */
+.s-error .body-g { animation: tr-shake calc(1.8s * var(--k)) ease-in-out infinite }
+.s-error .cloud { animation: tr-float calc(1.8s * var(--k)) ease-in-out infinite }
+
+/* En pausa: respira lento y suelta zetas */
+.s-sleep .body-g { animation: tr-breathe calc(4.5s * var(--k)) ease-in-out infinite }
+.s-sleep .z { opacity: 0; animation: tr-zz calc(3s * var(--k)) linear infinite }
+.s-sleep .z2 { animation-delay: calc(-1s * var(--k)) }
+.s-sleep .z3 { animation-delay: calc(-2s * var(--k)) }
+
+@keyframes tr-breathe { 0%, 100% { transform: scale(1, 1) } 50% { transform: scale(1.03, .97) } }
+@keyframes tr-blink { 0%, 90%, 100% { transform: scaleY(1) } 94% { transform: scaleY(.1) } }
+@keyframes tr-rock { 0%, 100% { transform: rotate(-2deg) } 50% { transform: rotate(2deg) } }
+@keyframes tr-look { 0%, 100% { transform: translate(-3px, -3px) } 50% { transform: translate(3px, -3px) } }
+@keyframes tr-dot { 0%, 100% { opacity: .25; transform: translateY(0) } 50% { opacity: 1; transform: translateY(-4px) } }
+@keyframes tr-orbit { to { transform: rotate(360deg) } }
+@keyframes tr-follow { 0%, 100% { transform: translate(0, -3px) } 25% { transform: translate(3px, 0) } 50% { transform: translate(0, 3px) } 75% { transform: translate(-3px, 0) } }
+@keyframes tr-bounce { 0%, 100% { transform: translateY(0) scale(1.02, .98) } 50% { transform: translateY(-5px) scale(.98, 1.02) } }
+@keyframes tr-scrib { 0% { stroke-dashoffset: 130; opacity: 1 } 70% { stroke-dashoffset: 0; opacity: 1 } 100% { stroke-dashoffset: 0; opacity: 0 } }
+@keyframes tr-flick { 50% { opacity: .2 } }
+@keyframes tr-bob { 50% { transform: translateY(-2px) } }
+@keyframes tr-type1 { 0% { stroke-dashoffset: 70 } 20%, 90% { stroke-dashoffset: 0; opacity: 1 } 100% { stroke-dashoffset: 0; opacity: 0 } }
+@keyframes tr-type2 { 0%, 25% { stroke-dashoffset: 70 } 45%, 90% { stroke-dashoffset: 0; opacity: 1 } 100% { stroke-dashoffset: 0; opacity: 0 } }
+@keyframes tr-type3 { 0%, 50% { stroke-dashoffset: 70 } 65%, 90% { stroke-dashoffset: 0; opacity: 1 } 100% { stroke-dashoffset: 0; opacity: 0 } }
+@keyframes tr-pen { 0% { transform: translate(0, 0) } 20% { transform: translate(46px, 0) } 25% { transform: translate(0, 10px) } 45% { transform: translate(64px, 10px) } 50% { transform: translate(0, 20px) } 65%, 90% { transform: translate(30px, 20px) } 100% { transform: translate(0, 0) } }
+@keyframes tr-tilt { 0%, 100% { transform: rotate(-6deg) } 50% { transform: rotate(6deg) } }
+@keyframes tr-pop { 0% { transform: scale(0) } 10% { transform: scale(1.2) } 16%, 100% { transform: scale(1) } }
+@keyframes tr-jump { 0% { transform: translateY(0) scale(1.08, .92) } 15% { transform: translateY(0) scale(.95, 1.05) } 35% { transform: translateY(-16px) scale(1, 1) } 55% { transform: translateY(0) scale(1.1, .9) } 65%, 100% { transform: translateY(0) scale(1, 1) } }
+@keyframes tr-check { 0%, 30% { stroke-dashoffset: 70 } 55%, 100% { stroke-dashoffset: 0 } }
+@keyframes tr-spark { 0%, 35% { transform: scale(0); opacity: 0 } 50% { transform: scale(1.2); opacity: 1 } 80%, 100% { transform: scale(.8); opacity: 0 } }
+@keyframes tr-shake { 0%, 40%, 100% { transform: translateX(0) } 5%, 15%, 25% { transform: translateX(-5px) } 10%, 20%, 30% { transform: translateX(5px) } }
+@keyframes tr-float { 50% { transform: translateY(-3px) } }
+@keyframes tr-zz { 0% { transform: translate(0, 0); opacity: 0 } 20% { opacity: 1 } 100% { transform: translate(14px, -26px); opacity: 0 } }
+
+/* Movimiento reducido: pose fija de cada estado */
+@media (prefers-reduced-motion: reduce) {
+  .av * { animation: none !important }
+  .av .tl, .av .check, .av .scrib { stroke-dashoffset: 0 !important }
+  .av .z, .av .spk { opacity: 1 !important }
+}
+</style>
+
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<defs>
+<filter id="rz" x="-20%" y="-20%" width="140%" height="140%">
+<feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="5" result="n"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="2.8" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+<linearGradient id="shn" x1="0" y1="0" x2="0.4" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.3"></stop>
+<stop offset="0.55" stop-color="#ffffff" stop-opacity="0"></stop>
+<stop offset="1" stop-color="#000000" stop-opacity="0.2"></stop>
+</linearGradient>
+</defs>
+</svg>
+
+<div class="wrap">
+<header class="top">
+<div class="brand">
+<svg width="76" height="76" viewBox="0 0 200 200" role="img" aria-label="Icono de Tropa AI">
+<rect width="200" height="200" rx="46" fill="#facc15"></rect>
+<g stroke="#1a1820" stroke-width="3" filter="url(#rz)">
+<rect x="32" y="48" width="64" height="44" rx="22" fill="#8b5cf6" transform="rotate(-6 64 70)"></rect>
+<rect x="104" y="48" width="64" height="44" rx="12" fill="#ec4899" transform="rotate(5 136 70)"></rect>
+<rect x="32" y="110" width="64" height="44" rx="12" fill="#3b82f6" transform="rotate(4 64 132)"></rect>
+<rect x="104" y="110" width="64" height="44" rx="22" fill="#22c55e" transform="rotate(-5 136 132)"></rect>
+</g>
+<g fill="#ffffff"><circle cx="54" cy="70" r="4.5"></circle><circle cx="72" cy="69" r="4.5"></circle><circle cx="127" cy="69" r="4.5"></circle><circle cx="145" cy="71" r="4.5"></circle><circle cx="55" cy="131" r="4.5"></circle><circle cx="73" cy="132" r="4.5"></circle><circle cx="127" cy="133" r="4.5"></circle><circle cx="145" cy="131" r="4.5"></circle></g>
+</svg>
+<div>
+<h1>Tropa AI · en movimiento</h1>
+<p>Nueve estados para que se vea de un vistazo qué está haciendo cada agente.</p>
+</div>
+</div>
+</header>
+
+<form class="controls" id="controls" aria-label="Previsualización">
+<fieldset id="colors"><legend>Color</legend></fieldset>
+<fieldset id="shapes"><legend>Forma</legend></fieldset>
+<fieldset id="speeds"><legend>Velocidad</legend></fieldset>
+</form>
+
+<section>
+<div class="sec-head"><h2>Los estados</h2><p>Cada tarjeta muestra la animación en bucle, cuándo usarla y la clase que activa el estado.</p></div>
+<div class="grid" id="grid"></div>
+</section>
+
+<section>
+<div class="sec-head"><h2>Una tarea de principio a fin</h2><p>Así se encadenan los estados cuando un agente recibe una tarea, la hace y termina.</p></div>
+<div class="cycle">
+<div class="cycle-stage" id="cycle-stage" aria-live="polite"></div>
+<div class="cycle-side">
+<span class="now" id="cycle-now">En espera</span>
+<ol class="steps" id="cycle-steps"></ol>
+<button type="button" class="btn" id="cycle-toggle">Pausar ciclo</button>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sec-head"><h2>Reglas de uso</h2></div>
+<div class="rules">
+<div class="rule"><h3>Un estado a la vez</h3><p>Cambia la clase <code>s-…</code> del SVG; no mezcles dos animaciones sobre el mismo agente.</p></div>
+<div class="rule"><h3>"Hecho" dura poco</h3><p>Muéstralo uno o dos ciclos (unos 3 s) y vuelve a "En espera".</p></div>
+<div class="rule"><h3>"Algo falló" no se repite sin fin</h3><p>Tras dos sacudidas, deja la pose quieta con el motivo del error al lado.</p></div>
+<div class="rule"><h3>En listas pequeñas, menos</h3><p>Por debajo de 40 px usa solo respirar, botar o parpadear; los efectos de alrededor no se leen.</p></div>
+<div class="rule"><h3>Movimiento reducido</h3><p>Si el sistema pide menos movimiento, cada estado se queda en su pose clave. Ya va incluido en el CSS.</p></div>
+<div class="rule"><h3>Velocidad global</h3><p>La variable <code>--k</code> multiplica todas las duraciones: 1,6 más calmado, 0,6 más enérgico.</p></div>
+</div>
+</section>
+
+<section>
+<div class="sec-head"><h2>El CSS</h2><p>Todo lo que necesitas para la app: clases de estado, keyframes y la versión con movimiento reducido.</p></div>
+<div class="code-box">
+<div class="code-bar"><span>tropa-animaciones.css</span><button type="button" class="btn" id="copy">Copiar CSS</button></div>
+<div class="code-scroll"><pre id="code"></pre></div>
+</div>
+</section>
+
+<footer>Tropa AI · sistema de animación de agentes</footer>
+</div>
+
+<script>
+(function () {
+  var COLORS = [['Violeta', '#8b5cf6'], ['Rosa', '#ec4899'], ['Azul', '#3b82f6'], ['Verde', '#22c55e'], ['Ámbar', '#f59e0b'], ['Cian', '#06b6d4']];
+  var rr = function (x, y, w, h, r) { return 'M' + (x + r) + ' ' + y + ' H' + (x + w - r) + ' A' + r + ' ' + r + ' 0 0 1 ' + (x + w) + ' ' + (y + r) + ' V' + (y + h - r) + ' A' + r + ' ' + r + ' 0 0 1 ' + (x + w - r) + ' ' + (y + h) + ' H' + (x + r) + ' A' + r + ' ' + r + ' 0 0 1 ' + x + ' ' + (y + h - r) + ' V' + (y + r) + ' A' + r + ' ' + r + ' 0 0 1 ' + (x + r) + ' ' + y + ' Z'; };
+  var SHAPES = { pill: ['Píldora', rr(32, 47, 96, 64, 32), 0], square: ['Cuadrado', rr(38, 45, 84, 68, 14), 0], card: ['Tarjeta', rr(34, 46, 92, 66, 16), -8] };
+  var SPEEDS = [['Calmado', 1.6], ['Normal', 1], ['Enérgico', 0.6]];
+  var INK = '#ece7df', DARK = '#141318';
+
+  var EYES = {
+    def: '<g class="eyes"><circle class="eye" cx="68" cy="79" r="5.5" fill="#fff"></circle><circle class="eye" cx="92" cy="79" r="5.5" fill="#fff"></circle></g>',
+    happy: '<g class="eyes"><path d="M61 82 q7 -8 14 0 M85 82 q7 -8 14 0" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"></path></g>',
+    shut: '<g class="eyes"><path d="M62 80 q6 4 12 0 M86 80 q6 4 12 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"></path></g>',
+    x: '<g class="eyes"><path d="M64 75 l8 8 M72 75 l-8 8 M88 75 l8 8 M96 75 l-8 8" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"></path></g>'
+  };
+  var STROKE = ' fill="none" stroke="' + INK + '" stroke-linecap="round" stroke-linejoin="round"';
+  var STATES = [
+    { id: 'idle', name: 'En espera', dur: '3 s · 4 s', when: 'Listo y sin tareas. Es el estado por defecto.', eyes: 'def', front: '' },
+    { id: 'think', name: 'Pensando', dur: '2,4 s', when: 'Acaba de recibir la tarea y está planificando.', eyes: 'def',
+      front: '<g class="dots" fill="' + INK + '"><circle cx="62" cy="30" r="4.5"></circle><circle cx="80" cy="24" r="5"></circle><circle cx="98" cy="30" r="4.5"></circle></g>' },
+    { id: 'search', name: 'Buscando', dur: '2,4 s', when: 'Consulta la web, archivos o una base de conocimiento.', eyes: 'def',
+      front: '<g class="orbit"><g filter="url(#rz)"' + STROKE + '><circle cx="80" cy="20" r="11" fill="#fff" fill-opacity=".15" stroke-width="2.6"></circle><path d="M88 28 l9 9" stroke-width="4.5"></path></g></g>' },
+    { id: 'work', name: 'Ejecutando', dur: '0,6 s', when: 'Usa herramientas o lanza automatizaciones.', eyes: 'def',
+      front: '<g filter="url(#rz)"' + STROKE + '><path class="scrib" d="M122 112 l12 -12 l-5 16 l14 -14 l-5 16 l12 -12" stroke-width="2.4"></path><path class="mlines" d="M22 70 h-10 M24 82 h-14 M22 94 h-8" stroke-width="2"></path></g>' },
+    { id: 'write', name: 'Escribiendo', dur: '3 s', when: 'Redacta la respuesta, un correo o un documento.', eyes: 'happy',
+      front: '<g filter="url(#rz)"' + STROKE + ' stroke-width="2.4"><path class="tl tl1" d="M44 130 h46"></path><path class="tl tl2" d="M44 140 h64"></path><path class="tl tl3" d="M44 150 h30"></path></g>' +
+        '<g transform="translate(44 128)"><g class="pen"><g transform="rotate(-50)" stroke="' + DARK + '" stroke-width="1.6" stroke-linejoin="round"><rect x="5" y="-4" width="32" height="8" fill="#facc15"></rect><path d="M5 -4 L-4 0 L5 4 Z" fill="#fde7c4"></path></g></g></g>' },
+    { id: 'ask', name: 'Necesita tu respuesta', dur: '1,8 s', when: 'Se ha detenido y espera que confirmes o elijas algo.', eyes: 'def',
+      front: '<g class="q" filter="url(#rz)"' + STROKE + '><path d="M118 22 q0 -11 10 -11 q10 0 10 9 q0 7 -9 9 l0 6" stroke-width="2.8"></path><circle cx="129" cy="44" r="2" fill="' + INK + '"></circle></g>' },
+    { id: 'done', name: 'Tarea hecha', dur: '1,6 s', when: 'Ha terminado bien. Úsalo un momento y vuelve a "En espera".', eyes: 'happy',
+      front: '<path class="check" d="M60 30 l12 11 l28 -26" fill="none" stroke="#22c55e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" filter="url(#rz)"></path>' +
+        '<g fill="#facc15"><path class="spk" d="M26 52 q1 7 8 8 q-7 1 -8 8 q-1 -7 -8 -8 q7 -1 8 -8z"></path><path class="spk" d="M136 50 q1 6 7 7 q-6 1 -7 7 q-1 -6 -7 -7 q6 -1 7 -7z"></path><path class="spk" d="M140 118 q1 5 6 6 q-5 1 -6 6 q-1 -5 -6 -6 q5 -1 6 -6z"></path></g>' },
+    { id: 'error', name: 'Algo falló', dur: '1,8 s', when: 'No pudo terminar. Muestra el motivo junto al avatar.', eyes: 'x',
+      front: '<g class="cloud" filter="url(#rz)"><path d="M58 38 q-6 -14 10 -15 q5 -11 18 -5 q13 -6 17 7 q12 1 8 13 z" fill="#3a3644" stroke="' + INK + '" stroke-width="2.2" stroke-linejoin="round"></path><path d="M70 30 l6 -5 l2 6 l7 -6 l2 6 l6 -5" fill="none" stroke="#f87171" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></g>' },
+    { id: 'sleep', name: 'En pausa', dur: '4,5 s', when: 'Pausado por ti o fuera de su horario programado.', eyes: 'shut',
+      front: '<g fill="' + INK + '" font-family="Caveat, cursive" font-weight="700"><text class="z z1" x="112" y="46" font-size="16">z</text><text class="z z2" x="112" y="46" font-size="22">z</text><text class="z z3" x="112" y="46" font-size="28">Z</text></g>' }
+  ];
+
+  var cur = { color: COLORS[0][1], shape: 'pill', k: 1 };
+
+  function svg(st, size) {
+    var s = SHAPES[cur.shape], d = s[1];
+    return '<svg class="av s-' + st.id + '" style="--k:' + cur.k + '" width="' + size + '" height="' + size + '" viewBox="0 0 160 160" role="img" aria-label="Agente: ' + st.name + '">' +
+      '<g transform="rotate(' + s[2] + ' 80 80)"><g class="body-g">' +
+      '<path d="' + d + '" fill="' + cur.color + '"></path>' +
+      '<path d="' + d + '" fill="url(#shn)"></path>' +
+      '<path d="' + d + '" fill="none" stroke="' + INK + '" stroke-width="2.4" filter="url(#rz)"></path>' +
+      EYES[st.eyes] + '</g></g>' + st.front + '</svg>';
+  }
+
+  function build(id, list, name, checked, render) {
+    var fs = document.getElementById(id);
+    list.forEach(function (it, i) {
+      var lab = document.createElement('label');
+      lab.innerHTML = render(it, i);
+      fs.appendChild(lab);
+      var inp = lab.querySelector('input');
+      inp.name = name; inp.id = name + '-' + i;
+      if (checked(it)) inp.checked = true;
+    });
+  }
+  build('colors', COLORS, 'color', function (c) { return c[1] === cur.color; }, function (c) { return '<span class="sw" style="--sw:' + c[1] + '"><input type="radio" value="' + c[1] + '" aria-label="' + c[0] + '"><span></span></span>'; });
+  build('shapes', Object.keys(SHAPES), 'shape', function (k) { return k === cur.shape; }, function (k) { return '<span class="pill"><input type="radio" value="' + k + '"><span>' + SHAPES[k][0] + '</span></span>'; });
+  build('speeds', SPEEDS, 'speed', function (s) { return s[1] === cur.k; }, function (s) { return '<span class="pill"><input type="radio" value="' + s[1] + '"><span>' + s[0] + '</span></span>'; });
+
+  var grid = document.getElementById('grid');
+  function renderGrid() {
+    grid.innerHTML = STATES.map(function (st) {
+      return '<article class="state"><div class="stage">' + svg(st, 180) + '</div><div class="state-top"><h3>' + st.name + '</h3><span class="chip">ciclo ' + st.dur + '</span></div><p>' + st.when + '</p><code>.s-' + st.id + '</code></article>';
+    }).join('');
+  }
+
+  // ciclo de una tarea
+  var CYCLE = [['idle', 2200], ['think', 2600], ['search', 3000], ['work', 2600], ['write', 3200], ['done', 3200]];
+  var stage = document.getElementById('cycle-stage'), now = document.getElementById('cycle-now'), stepsEl = document.getElementById('cycle-steps');
+  var byId = {}; STATES.forEach(function (s) { byId[s.id] = s; });
+  stepsEl.innerHTML = CYCLE.map(function (c) { return '<li>' + byId[c[0]].name + '</li>'; }).join('');
+  var idx = 0, timer = null, playing = true;
+  function showStep() {
+    var st = byId[CYCLE[idx][0]];
+    stage.innerHTML = svg(st, 240);
+    now.textContent = st.name;
+    Array.prototype.forEach.call(stepsEl.children, function (li, i) { li.classList.toggle('on', i === idx); });
+  }
+  function next() { idx = (idx + 1) % CYCLE.length; showStep(); schedule(); }
+  function schedule() { clearTimeout(timer); if (playing) timer = setTimeout(next, CYCLE[idx][1] * cur.k); }
+  document.getElementById('cycle-toggle').addEventListener('click', function () {
+    playing = !playing; this.textContent = playing ? 'Pausar ciclo' : 'Reanudar ciclo'; schedule();
+  });
+
+  document.getElementById('controls').addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.name === 'color') cur.color = t.value;
+    if (t.name === 'shape') cur.shape = t.value;
+    if (t.name === 'speed') cur.k = parseFloat(t.value);
+    renderGrid(); showStep(); schedule();
+  });
+
+  renderGrid(); showStep(); schedule();
+
+  // código
+  var code = document.getElementById('code');
+  code.textContent = document.getElementById('anim-css').textContent.trim();
+  document.getElementById('copy').addEventListener('click', function () {
+    var btn = this;
+    function selectCode() { var r = document.createRange(); r.selectNodeContents(code); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Seleccionado: pulsa Ctrl+C'; }
+    try {
+      navigator.clipboard.writeText(code.textContent).then(function () { btn.textContent = 'Copiado'; setTimeout(function () { btn.textContent = 'Copiar CSS'; }, 1800); }, selectCode);
+    } catch (err) { selectCode(); }
+  });
+})();
+</script>
+
+</body>
+</html>
