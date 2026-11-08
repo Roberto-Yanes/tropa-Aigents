@@ -29,3 +29,7 @@ select{color-scheme:dark} select option,select optgroup{background-color:#242428
 .tropa-sprite{display:block;width:160px;height:160px;border-radius:0}
 .chat-compose select[name="recipient"]{width:auto;max-width:180px;flex:0 1 180px;margin:0;font-size:12px}
 .google-settings{margin:0 30px 20px}.google-settings input[type=checkbox]{width:auto;margin:0 6px 0 0}.google-grant{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid #333}.google-grant strong{flex:1;min-width:180px}.google-grant label{margin:0}.google-auth{display:inline-block;text-decoration:none;padding:10px 14px;border-radius:8px}
+
+#whatsapp-phone-field[hidden]{display:none}
+
+.icon-rail .account-indicator img{width:23px;height:23px;display:block}.icon-rail .account-indicator.disconnected img{opacity:.45}.welcome-account img{width:20px;height:20px;vertical-align:middle}

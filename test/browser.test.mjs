@@ -19,3 +19,12 @@ test('browser approval is single-use, bound to page, and rejected on release',as
   const other=b.bind('r','Agent',controller.signal);const changed=b.approval(s,{type:'Clic'},b.keys.get(other.key).signal);const changedId=s.pending.id;s.page.url=()=> 'https://elsewhere.org/';b.decide('r',changedId,true);await assert.rejects(changed,/cambió/);other.release();
  }finally{b.sessions.clear();await b.closeAll();}
 });
+test('approval events identify the run and close once even with a failing listener',async()=>{
+ const b=new VisualBrowser(()=> 'http://127.0.0.1:4318');const c=new AbortController();const s={page:{url:()=> 'https://example.org/'},history:[],agent:'Ana',pending:null};b.sessions.set('run-1',s);const events=[];
+ b.on('approval:pending',()=>{throw Error('listener')});b.on('approval:pending',e=>events.push(e));b.on('approval:closed',e=>events.push(e));
+ try{const p=b.approval(s,{type:'Hacer clic'},c.signal);const id=s.pending.id;b.decide('run-1',id,true);await p;assert.equal(events[0].runId,'run-1');assert.equal(events[0].pendingId,id);assert.equal(events[1].result,'approved');assert.equal(events.length,2);}finally{b.sessions.clear();await b.closeAll();}
+});
+test('an expired approval rejects and emits its closure',async()=>{
+ const b=new VisualBrowser(()=> 'http://127.0.0.1:4318',undefined,{approvalTimeout:10}),s={page:{url:()=> 'https://example.org'},history:[],agent:'Ana',pending:null},events=[];b.sessions.set('r',s);b.on('approval:closed',event=>events.push(event));
+ try{await assert.rejects(b.approval(s,{type:'Hacer clic'},new AbortController().signal),/cinco minutos/);assert.equal(s.pending,null);assert.equal(events.length,1);assert.equal(events[0].result,'rejected');}finally{b.sessions.clear();await b.closeAll();}
+});

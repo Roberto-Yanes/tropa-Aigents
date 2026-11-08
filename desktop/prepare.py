@@ -9,6 +9,7 @@ for f in root.glob('*.mjs'):shutil.copy2(f,backend/f.name)
 shutil.copy2(root/'google-vault.py',backend/'google-vault.py')
 for name in ['package.json','package-lock.json','LICENSE','browser-extension.zip']:shutil.copy2(root/name,backend/name)
 for name in ['public','browser-extension']:shutil.copytree(root/name,backend/name)
+shutil.copytree(root/'channels',backend/'channels')
 subprocess.run([shutil.which('npm') or 'npm','ci','--omit=dev','--no-audit','--no-fund','--os='+platform,'--cpu='+arch],cwd=backend,check=True)
 nodeplatform='win' if platform=='win32' else platform
 filename=f'node-v24.22.1-{nodeplatform}-{arch}'+('.zip'if platform=='win32'else'.tar.gz')

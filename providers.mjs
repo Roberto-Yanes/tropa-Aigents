@@ -54,31 +54,36 @@ export function processCall(command, args, { cwd, input = '', signal, timeout = 
 }
 
 // Ask Kimi's local authenticated server; its bearer token remains in memory only.
-export async function inspectKimiAccount() {
+export async function queryKimiLocal(endpoint) {
+  if(!['/api/v1/auth','/api/v1/oauth/usage'].includes(endpoint))throw Error('Consulta de Kimi no permitida.');
   const env = nativeEnv(), native = nativeCommand('kimi', ['web', '--port', '0', '--no-open'], env);
   return new Promise(resolve => {
     const child = spawn(native.command, native.args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '', checking = false, finished = false;
     const finish = result => { if (finished) return; finished = true; clearTimeout(timer); child.kill(); resolve(result); };
-    const timer = setTimeout(() => finish({ accountState: 'unknown', accountLabel: 'No se pudo comprobar la sesión' }), 10000);
+    const timer = setTimeout(() => finish(null), 20000);
     const read = async chunk => {
       output += chunk.toString();
-      if (output.length > 16384) return finish({ accountState: 'unknown', accountLabel: 'No se pudo comprobar la sesión' });
+      if (output.length > 16384) return finish(null);
       const url = output.match(/https?:\/\/127\.0\.0\.1:\d+/)?.[0];
       const token = output.match(/Token:\s*(\S+)/)?.[1];
       if (!url || !token || checking) return;
       checking = true;
       try {
-        const response = await fetch(`${url}/api/v1/auth`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000) });
-        const status = (await response.json())?.data?.managed_provider?.status;
-        if (!response.ok || !status) throw Error('Estado no disponible');
-        finish(status === 'authenticated' ? { accountState: 'connected', accountLabel: 'Kimi conectado' } : { accountState: 'disconnected', accountLabel: status === 'expired' ? 'Sesión de Kimi vencida' : 'Iniciá sesión con Kimi' });
-      } catch { finish({ accountState: 'unknown', accountLabel: 'No se pudo comprobar la sesión' }); }
+        const response = await fetch(`${url}${endpoint}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+        const body=await response.json();if(!response.ok)throw Error('Estado no disponible');finish(body?.data||null);
+      } catch { finish(null); }
     };
     child.stdout.on('data', read); child.stderr.on('data', read);
-    child.on('error', () => finish({ accountState: 'unknown', accountLabel: 'No se pudo comprobar la sesión' }));
-    child.on('close', () => finish({ accountState: 'unknown', accountLabel: 'No se pudo comprobar la sesión' }));
+    child.on('error', () => finish(null));
+    child.on('close', () => finish(null));
   });
+}
+
+export async function inspectKimiAccount() {
+ const status=(await queryKimiLocal('/api/v1/auth'))?.managed_provider?.status;
+ if(!status)return {accountState:'unknown',accountLabel:'No se pudo comprobar la sesión'};
+ return status==='authenticated'?{accountState:'connected',accountLabel:'Kimi conectado'}:{accountState:'disconnected',accountLabel:status==='expired'?'Sesión de Kimi vencida':'Iniciá sesión con Kimi'};
 }
 
 export async function inspectProviders() {

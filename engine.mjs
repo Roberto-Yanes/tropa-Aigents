@@ -2,7 +2,8 @@ import { browserPolicy } from './site-policy.mjs';
 import { addInputs, workspace, listFiles } from './files.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, chmodSync } from 'node:fs';
+import { mkdirSync, chmodSync, existsSync } from 'node:fs';
+import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import { providers, runProvider } from './providers.mjs';
 
@@ -27,12 +28,22 @@ export function validateTeam(value) {
   return { id: randomUUID(), name, agents, browserAccess: browserPolicy(value.browserAccess) };
 }
 
-export class Engine {
+export function finalText(run) { return run.status==='failed' ? run.error : run.steps.filter(x=>x.kind==='final').at(-1)?.output || run.steps.at(-1)?.output || ''; }
+function coded(message,code){return Object.assign(new Error(message),{code});}
+export class Engine extends EventEmitter {
   constructor(dir, invoke = runProvider) {
+    super();
     this.dir = dir; this.invoke = invoke; this.active = new Map(); this.closed = false;
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    this.db = new DatabaseSync(join(dir, 'state.sqlite'));
+    const dbPath=join(dir, 'state.sqlite'), existed=existsSync(dbPath);
+    this.db = new DatabaseSync(dbPath);
     chmodSync(join(dir, 'state.sqlite'), 0o600);
+    const version=this.db.prepare('PRAGMA user_version').get().user_version;
+    if(version===0){
+      const backup=join(dir,'state.sqlite.pre-whatsapp-v1');
+      if(existed&&!existsSync(backup)){this.db.exec(`VACUUM INTO '${backup.replaceAll("'","''")}'`);chmodSync(backup,0o600);}
+      this.db.exec("BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS channel_messages (channel TEXT NOT NULL, message_id TEXT NOT NULL, received_at TEXT NOT NULL, run_id TEXT, state TEXT NOT NULL, notified_at TEXT, PRIMARY KEY (channel,message_id)); PRAGMA user_version=1; COMMIT;");
+    }
     this.db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS teams (id TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
     // A response in flight has unknown outcome. Never automatically repeat it after a crash.
     for (const r of this.runs()) if (['running', 'queued'].includes(r.status)) {
@@ -42,7 +53,10 @@ export class Engine {
   teams() { return this.db.prepare('SELECT body FROM teams ORDER BY rowid DESC').all().map(r => JSON.parse(r.body)); }
   runs() { return this.db.prepare('SELECT body FROM runs ORDER BY rowid DESC LIMIT 100').all().map(r => JSON.parse(r.body)); }
   get(id) { const r = this.db.prepare('SELECT body FROM runs WHERE id=?').get(id); if (!r) throw new Error('Ejecución no encontrada.'); return JSON.parse(r.body); }
-  save(r) { this.db.prepare('INSERT OR REPLACE INTO runs VALUES (?, ?)').run(r.id, JSON.stringify(r)); }
+  safeEmit(name,value){for(const listener of this.rawListeners(name)){try{const result=listener.call(this,value);if(result&&typeof result.then==='function')result.catch(()=>{});}catch{}}}
+  save(r) { this.db.prepare('INSERT OR REPLACE INTO runs VALUES (?, ?)').run(r.id, JSON.stringify(r)); this.safeEmit('run',{id:r.id,status:r.status,steps:r.steps.length}); }
+  getSetting(key){const row=this.db.prepare('SELECT value FROM settings WHERE key=?').get(key);return row?JSON.parse(row.value):null;}
+  setSetting(key,value){if(typeof key!=='string'||!key.trim()||value===undefined)throw Error('Ajuste inválido.');this.db.prepare('INSERT OR REPLACE INTO settings VALUES (?, ?)').run(key,JSON.stringify(value));return value;}
   addTeam(body) { const t = validateTeam(body); this.db.prepare('INSERT INTO teams VALUES (?, ?)').run(t.id, JSON.stringify(t)); return t; }
   mainTeamId() { return this.db.prepare("SELECT value FROM settings WHERE key='mainTeamId'").get()?.value || null; }
   createMain(body) {
@@ -66,7 +80,7 @@ export class Engine {
     return this.startSnapshot(team, objective, undefined, files);
   }
   startSnapshot(team, objective, source, files=[]) {
-    if (this.closed || this.active.size >= 2) throw new Error('El motor está ocupado o cerrado.');
+    if (this.closed || this.active.size >= 2) throw coded('El motor está ocupado o cerrado.','ENGINE_BUSY');
     team = {...validateTeam(team), id: team.id};
     const run = { source, id: randomUUID(), team, objective: string(objective, 'Objetivo', 12000), status: 'queued', steps: [], createdAt: new Date().toISOString(), error: '' };
     addInputs(this.dir,run.id,files);
@@ -75,18 +89,21 @@ export class Engine {
   chatRuns(teamId, index) {
     return this.db.prepare('SELECT body FROM runs ORDER BY rowid ASC').all().map(r=>JSON.parse(r.body)).filter(r=>r.source?.kind==='chat' && r.source.teamId===teamId && r.source.index===index);
   }
-  chat(teamId, index, message) {
+  chat(teamId, index, message, opts={}) {
     const teams=this.teams(), team=teams.find(t=>t.id===teamId);
-    if(!team||!Number.isInteger(index)||index<0||index>=team.agents.length)throw Error('Agente no encontrado.');
-    message=string(message,'Mensaje',4000);
-    const prior=this.chatRuns(teamId,index);if(prior.some(r=>['queued','running'].includes(r.status)))throw Error('Esperá a que termine la respuesta anterior.');
+    if(!team||!Number.isInteger(index)||index<0||index>=team.agents.length)throw coded('Agente no encontrado.','AGENT_NOT_FOUND');
+    try{message=string(message,'Mensaje',4000);}catch{throw coded('Mensaje: valor vacío o demasiado largo.','MESSAGE_INVALID');}
+    if(opts.channel!==undefined&&opts.channel!=='whatsapp')throw Error('Canal inválido.');
+    if(opts.messageId!==undefined&&(opts.channel!=='whatsapp'||typeof opts.messageId!=='string'||!opts.messageId||opts.messageId.length>200))throw Error('Identificador de mensaje inválido.');
+    const channelSource=opts.channel?{channel:opts.channel,...(opts.messageId?{channelMessageId:opts.messageId}:{})}:{};
+    const prior=this.chatRuns(teamId,index);if(prior.some(r=>['queued','running'].includes(r.status)))throw coded('Esperá a que termine la respuesta anterior.','CHAT_PENDING');
     const history=prior.filter(r=>r.status==='completed').slice(-10).map(r=>({persona:r.source.message,respuesta:r.steps.filter(x=>x.kind==='final').at(-1)?.output||r.steps.at(-1)?.output||''}));
-    if(team.agents[index].provider==='demo'){const objective=`Conversación directa. Historial:\n${history.map(h=>`Persona: ${h.persona}\nRespuesta: ${h.respuesta}`).join('\n')}\nÚltimo mensaje: ${message}`;return this.startSnapshot({...team,agents:[team.agents[index]]},objective,{kind:'chat',teamId,index,message});}
+    if(team.agents[index].provider==='demo'){const objective=`Conversación directa. Historial:\n${history.map(h=>`Persona: ${h.persona}\nRespuesta: ${h.respuesta}`).join('\n')}\nÚltimo mensaje: ${message}`;return this.startSnapshot({...team,agents:[team.agents[index]]},objective,{kind:'chat',teamId,index,message,...channelSource});}
     const all=teamId===this.mainTeamId()?teams:teams.filter(t=>t.id===teamId);
     const participants=all.flatMap(t=>t.agents.map((agent,i)=>({agent,teamId:t.id,index:i,teamName:t.name,browserAccess:t.browserAccess})));
     const root=participants.findIndex(p=>p.teamId===teamId&&p.index===index);
     if(root<0||participants.length>128)throw Error('No se pudo preparar la lista de agentes.');
-    return this.startSnapshot({...team,agents:[team.agents[index]]},message,{kind:'chat',mode:'direct-collab',teamId,index,message,history,participants,stack:[{participant:root,request:message}],calls:0});
+    return this.startSnapshot({...team,agents:[team.agents[index]]},message,{kind:'chat',mode:'direct-collab',teamId,index,message,history,participants,stack:[{participant:root,request:message}],calls:0,...channelSource});
   }
   async executeDirectChat(id,controller) {
     const run=this.get(id);run.status='running';run.error='';this.save(run);

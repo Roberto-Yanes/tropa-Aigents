@@ -1,6 +1,7 @@
 import {nativeCommand} from './native-command.mjs';
 import {spawn} from 'node:child_process';
 import {query} from '@anthropic-ai/claude-agent-sdk';
+import {queryKimiLocal} from './providers.mjs';
 const cache=new Map();
 const cleanEnv=()=>Object.fromEntries(Object.entries(process.env).filter(([k])=>!/API_KEY|AUTH_TOKEN|ACCESS_TOKEN|BEARER_TOKEN|^ANTHROPIC_BASE_URL$|^OPENAI_BASE_URL$|^CLAUDECODE$/.test(k)));
 function codexUsage(){return new Promise((resolve,reject)=>{
@@ -26,8 +27,13 @@ async function claudeUsage(){
  return {windows:[['five_hour',300],['seven_day',10080]].flatMap(([key,minutes])=>{const w=data.rate_limits?.[key];return w&&Number.isFinite(w.utilization)?[{minutes,usedPercent:w.utilization,resetsAt:w.resets_at||null}]:[];})};
  }finally{clearTimeout(timer);release();q.close();}
 }
+export function parseKimiUsage(data){
+ if(data?.kind!=='ok'||!data.quota?.usages)throw Error('Kimi no informó límites');
+ const labels={limit5h:['5 horas',300],limit7d:['Semanal',10080],monthTotal:['Mensual',null],monthCode:['Mensual · código',null]};
+ return {windows:Object.entries(data.quota.usages).flatMap(([key,w])=>{if(!Number.isFinite(w?.usedRatio)||w.usedRatio<0)return [];const [label,minutes]=labels[key]||[key,null];return [{label,minutes,usedPercent:Math.round(w.usedRatio*10000)/100,resetsAt:w.resetAt||null}];})};
+}
 export async function readUsage(id){
  const entry=cache.get(id);if(entry&&Date.now()<entry.next)return entry.promise;
- const promise=(async()=>{try{const value=await(id==='codex'?codexUsage():claudeUsage());return {...value,checkedAt:new Date().toISOString()};}catch{return {windows:[],error:'Uso no disponible temporalmente',checkedAt:new Date().toISOString()};}})();
+ const promise=(async()=>{try{const value=id==='codex'?await codexUsage():id==='claude'?await claudeUsage():id==='kimi'?parseKimiUsage(await queryKimiLocal('/api/v1/oauth/usage')):null;if(!value)throw Error('Sin integración');return {...value,checkedAt:new Date().toISOString()};}catch{return {windows:[],error:'El proveedor no informó el uso disponible',checkedAt:new Date().toISOString()};}})();
  cache.set(id,{promise,next:Date.now()+300000});return promise;
 }

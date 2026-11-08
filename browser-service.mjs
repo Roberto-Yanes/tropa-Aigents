@@ -5,14 +5,16 @@ import { chromium } from 'playwright';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { EventEmitter } from 'node:events';
 
 export function publicIP(ip) {
  if(ip.includes(':'))return !/^(::|fc|fd|fe8|fe9|fea|feb|ff)/i.test(ip);
  const [a,b]=ip.split('.').map(Number);
  return !(a===0||a===10||a===127||a===169&&b===254||a===172&&b>=16&&b<=31||a===192&&b===168||a===100&&b>=64&&b<=127||a>=224);
 }
-export class VisualBrowser {
- constructor(origin,profileDir){this.profileDir=profileDir;this.personal=null;this.personalStarting=null;this.manualBusy=false;this.bridge=new BrowserBridge();this.origin=origin;this.sessions=new Map();this.keys=new Map();this.busyRuns=new Set();this.browser=null;this.starting=null;this.timer=setInterval(()=>{for(const [id,s] of this.sessions)if(!s.pending&&Date.now()-s.touched>1200000)this.close(id);},60000);this.timer.unref();}
+export class VisualBrowser extends EventEmitter {
+ constructor(origin,profileDir,{approvalTimeout=300000}={}){super();this.approvalTimeout=approvalTimeout;this.profileDir=profileDir;this.personal=null;this.personalStarting=null;this.manualBusy=false;this.bridge=new BrowserBridge();this.origin=origin;this.sessions=new Map();this.keys=new Map();this.busyRuns=new Set();this.browser=null;this.starting=null;this.timer=setInterval(()=>{for(const [id,s] of this.sessions)if(!s.pending&&Date.now()-s.touched>1200000)this.close(id);},60000);this.timer.unref();}
+ safeEmit(name,value){for(const listener of this.rawListeners(name)){try{const result=listener.call(this,value);if(result&&typeof result.then==='function')result.catch(()=>{});}catch{}}}
  bind(runId,agent,signal,policy={mode:"isolated",sites:[]}){const key=randomBytes(32).toString('hex');const controller=new AbortController();const abort=()=>controller.abort();signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();this.keys.set(key,{runId,agent,policy,signal:controller.signal});return {key,release:()=>{controller.abort();signal.removeEventListener('abort',abort);this.keys.delete(key);}};}
  isDemo(url){try{const u=new URL(url);return u.origin===this.origin()&&['/browser-demo','/browser-demo/result'].includes(u.pathname);}catch{return false;}}
  async allowed(url){
@@ -83,10 +85,11 @@ export class VisualBrowser {
   if(signal.aborted)throw Error('Ejecución cancelada.');
   if(s.pending)throw Error('Ya hay una acción pendiente.');
   await new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>finish(Error('No se recibió autorización en cinco minutos.')),300000);
+   const timer=setTimeout(()=>finish(Error('No se recibió autorización en cinco minutos.')),this.approvalTimeout);
    const abort=()=>finish(Error('Ejecución cancelada.'));
-   const finish=err=>{clearTimeout(timer);signal.removeEventListener('abort',abort);s.pending=null;err?reject(err):resolve();};
-   s.pending={id:randomUUID(),action,url:s.page.url(),finish};signal.addEventListener('abort',abort,{once:true});
+   let finished=false;const runId=[...this.sessions].find(([,session])=>session===s)?.[0],pendingId=randomUUID();
+   const finish=err=>{if(finished)return;finished=true;clearTimeout(timer);signal.removeEventListener('abort',abort);s.pending=null;this.safeEmit('approval:closed',{runId,pendingId,result:err?'rejected':'approved'});err?reject(err):resolve();};
+   s.pending={id:pendingId,action,url:s.page.url(),finish};signal.addEventListener('abort',abort,{once:true});this.safeEmit('approval:pending',{runId,pendingId,action,url:s.pending.url});
   });
  }
  decide(id,pendingId,allow){const s=this.sessions.get(id);if(!s?.pending||s.pending.id!==pendingId)throw Error('La solicitud ya no está pendiente.');const p=s.pending;this.log(s,allow?'Acción autorizada por la persona':'Acción rechazada por la persona',false);if(s.page.url()!==p.url)return p.finish(Error('La página cambió. Inspeccioná y solicitá autorización otra vez.'));p.finish(allow?null:Error('La persona rechazó la acción. No la repitas.'));}
