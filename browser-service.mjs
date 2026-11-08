@@ -53,6 +53,10 @@ export class VisualBrowser extends EventEmitter {
   }finally{this.manualBusy=false;}
  }
  async session(id,policy){
+  // A flow can hand the run to a team with another browser mode: never reuse a session of a different kind.
+  if(this.sessions.get(id)?.closed)this.sessions.delete(id);
+  const current=this.sessions.get(id),kind=s=>s.internal?'internal':s.external?'existing':'isolated';
+  if(current&&kind(current)!==(policy?.mode||'isolated'))await this.close(id);
   if(policy?.mode==='internal'){
    if(this.manualBusy)throw Error('La persona está usando el navegador. Esperá antes de continuar.');
    const internal=await this.internal();if(internal.owner&&internal.owner!==id)throw Error('Otro equipo está usando el navegador interno.');
@@ -80,7 +84,7 @@ export class VisualBrowser extends EventEmitter {
   s.text=(await s.page.locator('body').innerText()).slice(0,12000);s.image=(await s.page.screenshot({type:'jpeg',quality:65})).toString('base64');s.touched=Date.now();
   return {url:s.url,title:await s.page.title(),text:s.text,elements,screenshot:s.image};
  }
- state(id){const s=this.sessions.get(id);return s?{url:s.url,image:s.image,agent:s.agent,pending:s.pending?{id:s.pending.id,action:s.pending.action,url:s.pending.url}:null,history:s.history,actionCount:s.actionCount||0,open:true}:{open:false,history:[],actionCount:0};}
+ state(id){const s=this.sessions.get(id);return s?{url:s.url,image:s.image,agent:s.agent,pending:s.pending?{id:s.pending.id,action:s.pending.action,url:s.pending.url}:null,history:s.history,actionCount:s.actionCount||0,open:!s.closed}:{open:false,history:[],actionCount:0};}
  async approval(s,action,signal){
   if(signal.aborted)throw Error('Ejecución cancelada.');
   if(s.pending)throw Error('Ya hay una acción pendiente.');
@@ -92,7 +96,7 @@ export class VisualBrowser extends EventEmitter {
    s.pending={id:pendingId,action,url:s.page.url(),finish};signal.addEventListener('abort',abort,{once:true});this.safeEmit('approval:pending',{runId,pendingId,action,url:s.pending.url});
   });
  }
- decide(id,pendingId,allow){const s=this.sessions.get(id);if(!s?.pending||s.pending.id!==pendingId)throw Error('La solicitud ya no está pendiente.');const p=s.pending;this.log(s,allow?'Acción autorizada por la persona':'Acción rechazada por la persona',false);if(s.page.url()!==p.url)return p.finish(Error('La página cambió. Inspeccioná y solicitá autorización otra vez.'));p.finish(allow?null:Error('La persona rechazó la acción. No la repitas.'));}
+ decide(id,pendingId,allow){const s=this.sessions.get(id);if(!s?.pending||s.pending.id!==pendingId)throw Error('La solicitud ya no está pendiente.');const p=s.pending;this.log(s,allow?'Acción autorizada por la persona':'Acción rechazada por la persona',false);if(s.page.url()!==p.url){p.finish(Error('La página cambió. Inspeccioná y solicitá autorización otra vez.'));return 'page_changed';}p.finish(allow?null:Error('La persona rechazó la acción. No la repitas.'));return allow?'approved':'rejected';}
  async call(key,name,args={}){
   const binding=this.keys.get(key);if(!binding||binding.signal.aborted)throw Error('Sesión de herramientas no válida.');
   if(this.busyRuns.has(binding.runId))throw Error('Hay otra acción en curso. Esperá su resultado.');this.busyRuns.add(binding.runId);
@@ -131,6 +135,7 @@ export class VisualBrowser extends EventEmitter {
   const {runId,policy,signal}=binding;
   if(!this.bridge.status().connected)throw Error('La extensión no está conectada. Abrí Conexiones y vinculá tu navegador.');
   let s=this.sessions.get(runId);
+  if(s&&!s.external){await this.close(runId);s=null;}
   if(!s){s={external:true,history:[],pending:null,touched:Date.now(),url:'about:blank',image:null,agent:binding.agent,refs:new Map()};s.page={url:()=>s.url};this.sessions.set(runId,s);}
   s.agent=binding.agent;s.touched=Date.now();const action=name.replace('browser_','');
   if(!['open','inspect','click','fill','select','press','scroll'].includes(action))throw Error('Herramienta desconocida.');
@@ -155,6 +160,8 @@ export class VisualBrowser extends EventEmitter {
   s.url=snapshot.url;s.image=snapshot.screenshot;s.refs=new Map((snapshot.elements||[]).map(e=>[e.ref,e]));
   this.log(s,action+': '+snapshot.url);return snapshot;
  }
- async close(id){const s=this.sessions.get(id);if(!s)return;s.pending?.finish(Error('Navegador cerrado.'));this.sessions.delete(id);if(s.internal){this.releaseInternal(id);}else if(s.external){if(this.bridge.status().connected)await this.bridge.request(id,"release",{},[],new AbortController().signal).catch(()=>{});}else await s.context.close();}
+ // After a run ends, its own Chromium context is closed but the last capture and log stay visible.
+ async retire(id){const s=this.sessions.get(id);if(!s||s.internal||s.external||s.closed||s.pending)return;s.closed=true;s.refs=new Map();await s.context.close().catch(()=>{});}
+ async close(id){const s=this.sessions.get(id);if(!s)return;s.pending?.finish(Error('Navegador cerrado.'));this.sessions.delete(id);if(s.closed)return;if(s.internal){this.releaseInternal(id);}else if(s.external){if(this.bridge.status().connected)await this.bridge.request(id,"release",{},[],new AbortController().signal).catch(()=>{});}else await s.context.close();}
  async closeAll(){clearInterval(this.timer);this.bridge.revoke();for(const id of [...this.sessions.keys()])await this.close(id);this.bridge.revoke();await this.browser?.close();await this.personal?.context.close();}
 }

@@ -39,10 +39,12 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
       return await providerRunner(agent,prompt,cwd,signal,access?{key:access.key,url:`http://127.0.0.1:${server.address().port}/internal/browser`}:null,googleAccess);
     }finally{
       if(googleKey)googleKeys.delete(googleKey);
-      if(access){access.release();const r=engine.get(runId);if(signal.aborted||r.steps.length===r.team.agents.length-1)browsers.releaseInternal(runId);}
+      if(access){access.release();if(signal.aborted)browsers.releaseInternal(runId);}
     }
   }));
   const operations = new Operations(engine);
+  // A run that stops or waits for approval frees the internal Chromium for other teams.
+  engine.on('run',e=>{if(['completed','failed','cancelled','interrupted','waiting'].includes(e.status))browsers.releaseInternal(e.id);if(['completed','failed','cancelled','interrupted'].includes(e.status))browsers.retire(e.id).catch(()=>{});});
   const whatsapp=whatsappService||new WhatsAppService({engine,browser:browsers,dir,onStatus:onChannelStatus,onAutostart});
   whatsapp.restore?.().catch(()=>{});
   const timer = setInterval(()=>operations.tick(),1000); timer.unref();
@@ -150,11 +152,13 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
       if(permissions)return send(200,engine.setBrowserAccess(permissions[1],body));
       const browserAction=path.match(/^\/api\/runs\/([a-f0-9-]{36})\/browser\/(decide|close)$/);
       if(browserAction){engine.get(browserAction[1]);if(browserAction[2]==='close')await browsers.close(browserAction[1]);else {if(typeof body.allow!=='boolean')throw Error('Decisión inválida.');browsers.decide(browserAction[1],body.id,body.allow);}return send(200,{ok:true});}
-      const op = path.match(/^\/api\/(routines|workflows|schedules)(?:\/([a-f0-9-]{36})\/(run|toggle))?$/);
+      const op = path.match(/^\/api\/(routines|workflows|schedules)(?:\/([a-f0-9-]{36})\/(run|toggle|delete|duplicate))?$/);
       if(op) {
         if(!op[2])return send(201,operations.save(op[1],body));
         if(op[3]==='toggle'&&op[1]==='schedules')return send(200,operations.toggle(op[2]));
         if(op[3]==='run')return send(201,operations.run(op[1],op[2]));
+        if(op[3]==='delete')return send(200,operations.remove(op[1],op[2]));
+        if(op[3]==='duplicate')return send(201,operations.duplicate(op[1],op[2]));
         throw Error('Acción inválida.');
       }
       const teamChatWrite=path.match(/^\/api\/teams\/([a-f0-9-]{36})\/chat$/);
@@ -163,11 +167,14 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
       if(chatWrite)return send(201,engine.chat(chatWrite[1],Number(chatWrite[2]),body.message));
       if (path === '/api/main-agent') return send(201,engine.createMain(body));
       if (path === '/api/teams') return send(201, engine.addTeam(body));
+      const teamEdit = path.match(/^\/api\/teams\/([a-f0-9-]{36})\/(update|delete)$/);
+      if (teamEdit && teamEdit[2] === 'update') { const r = engine.updateTeam(teamEdit[1], body); operations.remapAgents(teamEdit[1], r.map); return send(200, r.team); }
+      if (teamEdit) { const users = operations.teamUsers(teamEdit[1]); if (users.length) throw Error(`Este equipo se usa en ${users.join(', ')}. Quitalo de ahí antes de borrarlo.`); return send(200, engine.deleteTeam(teamEdit[1])); }
       if (path === '/api/runs') return send(201, engine.start(body.teamId, body.objective, body.files));
-      const match = path.match(/^\/api\/runs\/([a-f0-9-]{36})\/(cancel|resume)$/);
-      if (match) return send(200, engine[match[2]](match[1]));
+      const match = path.match(/^\/api\/runs\/([a-f0-9-]{36})\/(cancel|resume|approve|reject)$/);
+      if (match) return send(200, ['approve','reject'].includes(match[2]) ? engine.approve(match[1], match[2]==='approve') : engine[match[2]](match[1]));
       return send(404, { error: 'Ruta no encontrada.' });
-    } catch (e) { send(400, { error: e instanceof SyntaxError ? 'JSON inválido.' : e.message }); }
+    } catch (e) { if (res.headersSent) { res.destroy(); return; } send(400, { error: e instanceof SyntaxError ? 'JSON inválido.' : e.message }); }
   });
   return { server, engine };
 }

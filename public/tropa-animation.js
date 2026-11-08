@@ -36,7 +36,7 @@ window.tropaAnimation = (() => {
 
   function svg(st, size) {
     var s = SHAPES[cur.shape], d = s[1];
-    return '<svg class="av s-' + st.id + '" style="--k:' + cur.k + '" width="' + size + '" height="' + size + '" viewBox="0 0 160 160" role="img" aria-label="Agente: ' + st.name + '">' +
+    return '<svg class="av s-' + st.id + '"' + (cur.k !== 1 ? ' style="--k:' + cur.k + '"' : '') + ' width="' + size + '" height="' + size + '" viewBox="0 0 160 160" role="img" aria-label="Agente: ' + st.name + '">' +
       '<defs><filter id="tropa-rz" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="5" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.8" xChannelSelector="R" yChannelSelector="G"/></filter><linearGradient id="tropa-shn" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient></defs><g transform="rotate(' + s[2] + ' 80 80)"><g class="body-g">' +
       '<path d="' + d + '" fill="' + cur.color + '"></path>' +
       '<path d="' + d + '" fill="url(#tropa-shn)"></path>' +

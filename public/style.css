@@ -34,3 +34,16 @@ select{color-scheme:dark} select option,select optgroup{background-color:#242428
 
 .icon-rail .account-indicator img{width:23px;height:23px;display:block}.icon-rail .account-indicator.disconnected img{opacity:.45}.welcome-account img{width:20px;height:20px;vertical-align:middle}
 .agent-presets{width:min(960px,100%);margin:0 auto 30px}.agent-presets-heading{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:14px}.agent-presets-heading h2{margin:0 0 5px}.agent-presets-heading p{margin:0;color:#a5a0ae;font-size:12px}.preset-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.preset-grid button{display:flex;align-items:center;gap:12px;text-align:left;padding:12px;border:1px solid #34313b;background:#201e26;min-height:88px}.preset-grid button:hover{background:#292531;border-color:#6d588d}.preset-grid button[aria-pressed="true"]{border-color:#ad86ff;box-shadow:0 0 0 2px #ad86ff33}.preset-grid button>span:last-child{min-width:0}.preset-grid strong{display:block;font-size:13px;margin-bottom:5px}.preset-grid strong small{font-size:11px;font-weight:400;color:#b7a6d2}.preset-grid button>span>span{display:block;color:#aaa5b1;font-size:11px;line-height:1.4}.preset-grid .art-avatar{width:52px;height:52px}.creation-page .agent-presets-heading .tiny{white-space:nowrap}@media(max-width:1050px){.preset-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.preset-grid{grid-template-columns:1fr}.agent-presets-heading{align-items:start;flex-direction:column}}
+
+/* Flujos: pasos tipados (agente, equipo, condición, aprobación) */
+.flow-node.flow-step{width:270px;align-self:center}
+.flow-step label{display:block;position:static;background:none;border:0;padding:0;margin:10px 0 0!important;font-size:11px;letter-spacing:0;color:#bbb}
+.flow-step select,.flow-step input,.flow-step textarea{display:block;width:100%;box-sizing:border-box;margin-top:5px;background:#18181a;border:1px solid #3a3840;border-radius:7px;padding:8px;font-size:12px;color:#eee}
+.flow-step textarea{min-height:76px}
+.flow-step .node-actions{gap:4px;flex-wrap:wrap}
+.flow-step.team .node-kind{color:#7fd1a8}.flow-step.condition .node-kind{color:#e7ac3b}.flow-step.approval .node-kind{color:#f08a8a}
+.add-node-menu{display:flex;flex-direction:column;gap:6px;width:150px;flex-shrink:0;padding:12px;border:1px dashed #807488;border-radius:13px;background:#1d1c21}
+.add-node-menu .add-node{width:100%;padding:8px;font-size:11px;text-align:left}
+.flow-approval{border:1px solid #f08a8a66;background:#2a1f22;border-radius:12px;padding:16px}
+.flow-approval h3{margin:0 0 8px;font-size:14px}
+.step-badge{margin-left:8px}

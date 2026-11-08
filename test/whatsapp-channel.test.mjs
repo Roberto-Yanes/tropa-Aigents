@@ -4,7 +4,7 @@ test('owner messages are deduplicated and completed runs return the real result'
  try{e.createMain({name:'Atlas',provider:'codex'});e.setSetting('whatsapp:owner','owner@s.whatsapp.net');e.setSetting('whatsapp:mode','dedicated');const m={id:'in-1',jid:'owner@s.whatsapp.net',timestamp:Date.now()/1000,text:'Hola',fromMe:false};await channel.enqueue(m);const row=channel.row(m.id);await e.active.get(row.run_id)?.done;await channel.notify(row.run_id);await channel.enqueue(m);await channel.enqueue({...m,id:'other',jid:'other@s.whatsapp.net'});assert.equal(e.get(row.run_id).source.channel,'whatsapp');assert.equal(e.runs().length,1);assert.equal(sent.filter(x=>x.text==='Respuesta real de prueba').length,1);assert.equal(channel.row('in-1').state,'notified');assert.equal(channel.row('other'),undefined);assert.ok(splitText('x'.repeat(8000)).every(s=>s.length<=3500));}finally{await channel.stop();await e.close();rmSync(dir,{recursive:true,force:true});}
 });
 test('old messages require confirmation and resume requires explicit consent',async()=>{
- const dir=mkdtempSync(join(tmpdir(),'wa-old-')),e=new Engine(dir,async()=>JSON.stringify({accion:'finalizar',mensaje:'listo'}));const sent=[];const transport={send:async(_j,p)=>{sent.push(p.text);return 'sent-'+sent.length},react:async()=>{},ownJid:()=>'',stop:async()=>{}};const c=new WhatsAppChannel({sendDelay:0,engine:e,transport});
+ const dir=mkdtempSync(join(tmpdir(),'wa-old-')),e=new Engine(dir,async()=>JSON.stringify({accion:'finalizar',mensaje:'listo'}));const sent=[];const transport={send:async(_j,p)=>{sent.push(p.text);return 'sent-'+sent.length},react:async()=>{},ownJid:()=>'',stop:async()=>{}};const c=new WhatsAppChannel({sendDelay:0,batchDelay:0,engine:e,transport});
  try{e.createMain({name:'Atlas',provider:'codex'});e.setSetting('whatsapp:owner','owner@s.whatsapp.net');e.setSetting('whatsapp:mode','dedicated');const m={jid:'owner@s.whatsapp.net',timestamp:Date.now()/1000-1000,fromMe:false};await c.enqueue({...m,id:'old',text:'Una tarea'});assert.equal(e.runs().length,0);assert.match(sent[0],/Respondé SI o NO/);await c.enqueue({...m,id:'no',timestamp:Date.now()/1000,text:'NO'});assert.equal(e.runs().length,0);assert.equal(c.row('old').state,'rejected');await c.enqueue({...m,id:'old2',text:'Otra tarea'});await c.enqueue({...m,id:'yes',timestamp:Date.now()/1000,text:'sí'});const row=c.row('old2');await e.active.get(row.run_id)?.done;await c.notify(row.run_id);assert.equal(e.runs().length,1);await c.enqueue({...m,id:'resume',timestamp:Date.now()/1000,text:'/reanudar'});assert.match(sent.at(-1),/No hay un trabajo/);}finally{await c.stop();await e.close();rmSync(dir,{recursive:true,force:true});}
 });
 test('browser approvals reach only WhatsApp runs and decisions are single use',async()=>{
@@ -56,3 +56,83 @@ test('own-number echo arriving during send cannot cause a loop',async()=>{
  try{e.setSetting('whatsapp:owner','me@s.whatsapp.net');e.setSetting('whatsapp:mode','own');await c.send('me@s.whatsapp.net','respuesta');await c.queue;assert.equal(c.row('echo').state,'ignored');assert.equal(e.runs().length,0);}finally{await c.stop();await e.close();rmSync(dir,{recursive:true,force:true});}
 });
 test('recovery reconnects a run saved before its message association',async()=>{const dir=mkdtempSync(join(tmpdir(),'wa-assoc-')),e=new Engine(dir),sent=[];const c=new WhatsAppChannel({engine:e,transport:{send:async(_j,p)=>{sent.push(p.text);return 'out'},stop:async()=>{}},sendDelay:0});try{e.setSetting('whatsapp:owner','o@s.whatsapp.net');e.save({id:'r',status:'interrupted',source:{channel:'whatsapp',channelMessageId:'in'},steps:[],createdAt:new Date().toISOString()});e.db.prepare("INSERT INTO channel_messages(channel,message_id,received_at,state) VALUES('whatsapp','in',?,'received')").run(new Date().toISOString());await c.recover();assert.equal(c.row('in').run_id,'r');assert.equal(c.row('in').state,'notified');assert.match(sent[0],/interrumpido/);}finally{await c.stop();await e.close();rmSync(dir,{recursive:true,force:true});}});
+
+function waSetup(t,opts={},invoke=async()=>JSON.stringify({accion:'finalizar',mensaje:'listo'})){
+ const dir=mkdtempSync(join(tmpdir(),'wa-fix-')),e=new Engine(dir,invoke),sent=[];
+ const transport={send:async(_j,p)=>{sent.push(p.text??`[archivo ${p.fileName}]`);return 'out-'+sent.length;},react:async()=>{},ownJid:()=>'me@s.whatsapp.net',ownJids:()=>['me@s.whatsapp.net','123@lid'],stop:async()=>{}};
+ const c=new WhatsAppChannel({sendDelay:0,batchDelay:0,engine:e,transport,...opts});
+ e.createMain({name:'Atlas',provider:'codex'});e.setSetting('whatsapp:owner','owner@s.whatsapp.net');e.setSetting('whatsapp:mode','dedicated');
+ t.after(async()=>{await c.stop();await e.close();rmSync(dir,{recursive:true,force:true});});
+ return {e,c,sent};
+}
+const msg=(id,text,extra={})=>({id,jid:'owner@s.whatsapp.net',timestamp:Date.now()/1000,text,fromMe:false,kind:'text',...extra});
+
+test('a plain yes or no goes to the agent when nothing is pending',async t=>{
+ const prompts=[];const {e,c,sent}=waSetup(t,{},async(_a,p)=>{prompts.push(p);return JSON.stringify({accion:'finalizar',mensaje:'Perfecto, lo envío'});});
+ await c.enqueue(msg('m1','Sí'));const row=c.row('m1');assert.equal(row.state,'accepted');await e.active.get(row.run_id)?.done;await c.notify(row.run_id);
+ assert.match(prompts[0],/Sí/);assert.ok(sent.includes('Perfecto, lo envío'));assert.ok(!sent.some(x=>/confirmación vigente/.test(x)));
+});
+
+test('messages written while Tropa was off are confirmed and run together',async t=>{
+ const prompts=[];const {e,c,sent}=waSetup(t,{},async(_a,p)=>{prompts.push(p);return JSON.stringify({accion:'finalizar',mensaje:'hecho'});});
+ const old=Date.now()/1000-3600;
+ await c.enqueue(msg('o1','Primera tarea',{timestamp:old}));
+ await c.enqueue(msg('o2','Segunda tarea',{timestamp:old+5}));
+ await c.enqueue(msg('o3','Tercera tarea',{timestamp:old+9}));
+ assert.equal(e.runs().length,0);assert.match(sent[0],/Primera tarea/);assert.match(sent.at(-1),/ejecutar los 3/);
+ await c.enqueue(msg('yes','si'));
+ const row=c.row('o1');await e.active.get(row.run_id)?.done;
+ assert.equal(e.runs().length,1);assert.match(prompts[0],/1\. Primera tarea\\n2\. Segunda tarea\\n3\. Tercera tarea/);
+ assert.equal(c.row('o2').state,'merged');assert.equal(c.row('o3').run_id,row.run_id);
+ await c.notify(row.run_id);assert.equal(sent.filter(x=>x==='hecho').length,1);
+});
+
+test('a short burst of old messages produces a single question',async t=>{
+ const {e,c,sent}=waSetup(t,{batchDelay:30});const old=Date.now()/1000-3600;
+ await c.enqueue(msg('a','Uno',{timestamp:old}));await c.enqueue(msg('b','Dos',{timestamp:old}));
+ await new Promise(r=>setTimeout(r,60));await c.queue;
+ assert.equal(sent.length,1);assert.match(sent[0],/2 mensajes/);assert.equal(e.runs().length,0);
+});
+
+test('reactions and protocol messages never get a reply; media gets one notice',async t=>{
+ const {e,c,sent}=waSetup(t);
+ await c.enqueue(msg('r1',undefined,{kind:'reaction'}));await c.enqueue(msg('p1',undefined,{kind:'protocol'}));
+ assert.equal(sent.length,0);assert.equal(e.runs().length,0);
+ await c.enqueue(msg('i1',undefined,{kind:'media'}));assert.equal(sent.length,1);assert.match(sent[0],/solo leo texto/);
+});
+
+test('own number mode ignores the echo of its own reaction',async t=>{
+ const {c,sent,e}=waSetup(t);e.setSetting('whatsapp:mode','own');e.setSetting('whatsapp:owner','me@s.whatsapp.net');
+ await c.enqueue({id:'echo',jid:'me@s.whatsapp.net',fromMe:true,timestamp:Date.now()/1000,kind:'reaction'});
+ await c.enqueue({id:'lidself',jid:'123@lid',fromMe:true,timestamp:Date.now()/1000,text:'Hola desde mi chat',kind:'text'});
+ assert.equal(c.row('echo').state,'ignored');assert.ok(!sent.some(x=>/solo leo texto/.test(x)));assert.notEqual(c.row('lidself').run_id,null,'the self chat may arrive with the LID form');
+});
+
+test('the owner is recognised by the alternate JID form',async t=>{
+ const {c}=waSetup(t);
+ await c.enqueue(msg('lid1','Hola',{jid:'999@lid',alt:'owner@s.whatsapp.net'}));
+ assert.equal(c.row('lid1').state,'accepted');
+});
+
+test('wrong owner codes burn the registration window',async t=>{
+ const {c,e}=waSetup(t);e.setSetting('whatsapp:owner',null);
+ const {code}=c.generateOwnerCode();const wrong=code==='111111'?'222222':'111111';
+ for(let i=0;i<5;i++)await c.enqueue({id:'w'+i,jid:'stranger@s.whatsapp.net',fromMe:false,timestamp:Date.now()/1000,text:wrong,kind:'text'});
+ await c.enqueue({id:'late',jid:'stranger@s.whatsapp.net',fromMe:false,timestamp:Date.now()/1000,text:code,kind:'text'});
+ assert.equal(e.getSetting('whatsapp:owner'),null);
+});
+
+test('an approval whose page changed is reported as not done',async t=>{
+ const browser={on(){},off(){},state:()=>({agent:'Ana'}),decide:()=>'page_changed'};
+ const {c,sent}=waSetup(t,{browser});c.approvals.set('4821',{runId:'r',pendingId:'p'});
+ await c.enqueue(msg('d','SI 4821'));assert.match(sent.at(-1),/la acción no se realizó/);
+});
+
+test('a failed file after the answer never resends the answer',async t=>{
+ const {writeFileSync}=await import('node:fs');
+ const {e,c,sent}=waSetup(t,{},async(_a,_p,cwd)=>{writeFileSync(join(cwd,'informe.md'),'x');return JSON.stringify({accion:'finalizar',mensaje:'listo'});});let fail=true;
+ const send=c.transport.send;c.transport.send=async(j,p)=>{if(p.document&&fail){fail=false;throw Error('caída');}return send(j,p);};
+ await c.enqueue(msg('f1','Hacelo'));const row=c.row('f1');await e.active.get(row.run_id)?.done;
+ await c.notify(row.run_id).catch(()=>{});await c.outbound;assert.equal(c.row('f1').state,'text_sent');
+ await new Promise(r=>setTimeout(r,20));await c.recover();assert.equal(sent.filter(x=>x==='listo').length,1);assert.ok(sent.includes('[archivo informe.md]'));assert.equal(c.row('f1').state,'notified');
+});
