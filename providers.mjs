@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { StringDecoder } from 'node:string_decoder';
 
 export const providers = [
   { id: 'codex', name: 'Codex · cuenta ChatGPT', login: 'codex login', detail: 'Usa tu sesión de ChatGPT en Codex. Podés habilitar búsqueda web y escritura en la carpeta de trabajo por agente.' },
@@ -21,7 +22,7 @@ export function nativeEnv(env = process.env) {
     !/API_KEY|AUTH_TOKEN|ACCESS_TOKEN|BEARER_TOKEN|^ANTHROPIC_BASE_URL$|^OPENAI_BASE_URL$|^CLAUDECODE$/.test(k)));
 }
 
-export function processCall(command, args, { cwd, input = '', signal, timeout = 180000, env = nativeEnv(), includeStderr = false } = {}) {
+export function processCall(command, args, { cwd, input = '', signal, timeout = 180000, env = nativeEnv(), includeStderr = false, onStdout } = {}) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new Error('Ejecución cancelada.'));
     const native=nativeCommand(command,args,env);
@@ -42,7 +43,8 @@ export function processCall(command, args, { cwd, input = '', signal, timeout = 
       if (bytes > 2000000) return stop('La respuesta superó el límite de tamaño.');
       if (isOutput || includeStderr) output += chunk.toString();
     };
-    child.stdout.on('data', c => consume(c, true));
+    const decoder=new StringDecoder('utf8');
+    child.stdout.on('data', c => {consume(c, true);if(onStdout)try{onStdout(decoder.write(c));}catch{}});
     child.stderr.on('data', c => consume(c, false));
     child.stdin.on('error', () => {});
     function finish(err) {
@@ -119,7 +121,7 @@ export async function inspectProviders() {
   }));
 }
 
-export async function runProvider(agent, prompt, cwd, signal, browserAccess, googleAccess) {
+export async function runProvider(agent, prompt, cwd, signal, browserAccess, googleAccess, onDelta) {
   if(['ollama','lmstudio'].includes(agent.provider))return runLocal(agent.provider,agent,prompt,signal);
   if (agent.provider === 'demo') {
     await new Promise((resolve, reject) => {
@@ -148,10 +150,13 @@ export async function runProvider(agent, prompt, cwd, signal, browserAccess, goo
     return await readFile(file, 'utf8');
   }
   if (agent.provider === 'claude') {
-    const out = await processCall('claude', ['-p', '--output-format', 'json', '--tools', claudeTools, ...(agent.tools||agent.browser||googleAccess?['--restricted',...(!agent.browser&&!googleAccess?['--safe-mode']:['--disable-slash-commands','--settings','{"disableAllHooks":true}']),'--allowedTools',claudeAllowed]:[]), ...claudeBrowser, '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--permission-mode', 'dontAsk', ...model], { cwd, input: prompt, signal, timeout:agent.browser?1200000:agent.tools?480000:180000 });
+    let pending='';
+    const stream=typeof onDelta==='function';
+    const onStdout=stream?chunk=>{pending+=chunk;const lines=pending.split('\n');pending=lines.pop();for(const line of lines){try{const e=JSON.parse(line);if(e.type==='stream_event'&&e.event?.type==='content_block_delta'&&e.event.delta?.type==='text_delta'&&typeof e.event.delta.text==='string')onDelta(e.event.delta.text);}catch{}}}:undefined;
+    const out = await processCall('claude', ['-p', '--output-format', stream?'stream-json':'json', ...(stream?['--verbose','--include-partial-messages']:[]), '--tools', claudeTools, ...(agent.tools||agent.browser||googleAccess?['--restricted',...(!agent.browser&&!googleAccess?['--safe-mode']:['--disable-slash-commands','--settings','{"disableAllHooks":true}']),'--allowedTools',claudeAllowed]:[]), ...claudeBrowser, '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence', '--permission-mode', 'dontAsk', ...model], { cwd, input: prompt, signal, onStdout, timeout:agent.browser?1200000:agent.tools?480000:180000 });
     let result;
-    try { result = JSON.parse(out); } catch { throw new Error('Claude devolvió un formato no reconocido.'); }
-    if (result.is_error || typeof result.result !== 'string') throw new Error('Claude no completó la tarea. Revisá su cuenta y cuota en la aplicación oficial.');
+    try { result = stream?out.split('\n').filter(Boolean).map(line=>JSON.parse(line)).findLast(e=>e.type==='result'):JSON.parse(out); } catch { throw new Error('Claude devolvió un formato no reconocido.'); }
+    if (!result || result.is_error || typeof result.result !== 'string') throw new Error('Claude no completó la tarea. Revisá su cuenta y cuota en la aplicación oficial.');
     return result.result;
   }
   if (agent.provider === 'kimi') {

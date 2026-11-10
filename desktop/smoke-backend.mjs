@@ -14,6 +14,10 @@ try{
  assert.equal(ready.type,'ready');const page=await fetch(ready.url);assert.equal(page.status,200);assert.match(await page.text(),/Navegador interno/);
  const cookie=page.headers.get('set-cookie').split(';')[0];
  const state=await fetch(ready.url+'/api/state',{headers:{cookie}}).then(r=>r.json());assert.deepEqual(state.teams,[]);assert.deepEqual(state.runs,[]);
+ const mobile=await fetch(ready.url+'/api/mobile/status',{headers:{cookie}});
+ assert.equal(mobile.status,200);const mobileStatus=await mobile.json();
+ assert.equal(mobileStatus.relayUrl,'wss://tropa.galateasoftware.com.ar/relay');
+ assert.ok(Array.isArray(mobileStatus.devices));
  const refused=await fetch(ready.url+'/api/state');assert.equal(refused.status,401);
  child.send({type:'shutdown'});const [code]=await once(child,'exit');assert.equal(code,0);
  console.log('Motor empaquetado: inicio IPC, interfaz, almacenamiento limpio, autenticación local y cierre correctos.');

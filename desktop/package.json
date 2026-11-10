@@ -1,6 +1,6 @@
 {
   "name": "agentes-comunidad-desktop",
-  "version": "0.2.2",
+  "version": "0.2.5",
   "description": "Equipos de agentes con tus cuentas de IA",
   "author": "Tropa AI",
   "private": true,
@@ -68,8 +68,19 @@
       "sign": false
     },
     "artifactName": "Tropa-AI-${version}-${os}-${arch}.${ext}",
-    "afterPack": "after-pack.cjs"
+    "afterPack": "after-pack.cjs",
+    "deb": {
+      "packageName": "tropa-ai",
+      "compression": "gz",
+      "fpm": [
+        "--replaces",
+        "agentes-comunidad-desktop",
+        "--conflicts",
+        "agentes-comunidad-desktop",
+        "org.comunidad.agentes.metainfo.xml=/usr/share/metainfo/org.comunidad.agentes.metainfo.xml"
+      ]
+    }
   },
-  "homepage": "http://127.0.0.1:4318",
+  "homepage": "https://tropa.galateasoftware.com.ar/",
   "desktopName": "org.comunidad.agentes.desktop"
 }

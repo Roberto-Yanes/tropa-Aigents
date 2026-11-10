@@ -39,7 +39,7 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
         if(context?.browserAccess?.mode==='internal')prompt+='\nUsás Chromium interno. Sitios permitidos: '+context.browserAccess.sites.join(', ')+'. No eludas la lista de sitios.';
         access=browsers.bind(runId,agent.name,signal,context?.browserAccess);
       }
-      return await providerRunner(agent,prompt,cwd,signal,access?{key:access.key,url:`http://127.0.0.1:${server.address().port}/internal/browser`}:null,googleAccess);
+      return await providerRunner(agent,prompt,cwd,signal,access?{key:access.key,url:`http://127.0.0.1:${server.address().port}/internal/browser`}:null,googleAccess,context?.onDelta);
     }finally{
       if(googleKey)googleKeys.delete(googleKey);
       if(access){access.release();if(signal.aborted)browsers.releaseInternal(runId);}

@@ -68,6 +68,23 @@ test('a phone pairs with the QR and the same 6-digit code, then talks to the mai
   assert.equal(gateway.status().devices[0].name, 'iPhone de Rober');
 });
 
+test('el teléfono ordena a Atlas crear un equipo y ve sus agentes', async t => {
+ const invoke=async (_a,prompt)=>JSON.stringify(prompt.includes('agregá un agente')
+  ?{accion:'crear_agente',mensaje:'Listo',equipoId:JSON.parse(prompt.match(/Equipos existentes: (\[[^\n]*?\])\./)?.[1]||'[]')[0]?.id,agente:{name:'Tinta',instructions:'Redactar',provider:'codex'}}
+  :{accion:'crear_equipo',mensaje:'Listo',equipo:{name:'Investigación',agents:[{name:'Lupa',instructions:'Investigar',provider:'codex'}]}});
+ const {main,pair,engine}=await setup(t,invoke);const {client,events}=await pair();
+ const first=await client.call('chat.send',{teamId:main.id,index:0,text:'Creá un equipo llamado Investigación con un agente Lupa',clientId:client.newClientId()});
+ await engine.active.get(first.id)?.done;
+ const snapshot=await client.call('state.get');
+ const team=snapshot.teams.find(t=>t.name==='Investigación');
+ assert.equal(team.agents[0].name,'Lupa');
+ await until(()=>events.some(e=>e.runId===first.id&&e.status==='completed'));
+ const second=await client.call('chat.send',{teamId:main.id,index:0,text:'agregá un agente Tinta al equipo Investigación',clientId:client.newClientId()});
+ await engine.active.get(second.id)?.done;
+ const updated=await client.call('state.get');
+ assert.deepEqual(updated.teams.find(t=>t.id===team.id).agents.map(a=>a.name),['Lupa','Tinta']);
+});
+
 test('the QR is single use and a wrong proof never pairs', async t => {
   const { gateway, pair } = await setup(t);
   const { link } = await pair();

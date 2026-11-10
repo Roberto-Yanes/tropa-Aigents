@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.comunidad.agentes</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>Tropa AI</name>
+  <summary>Equipos de agentes de inteligencia artificial</summary>
+  <description>
+    <p>Creá equipos de agentes para conversar, organizar tareas y colaborar desde tu computadora.</p>
+    <p>Conectá un teléfono para consultar el trabajo y responder aprobaciones mientras Tropa Desktop está encendida.</p>
+  </description>
+  <launchable type="desktop-id">agentes-comunidad-desktop.desktop</launchable>
+  <icon type="stock">agentes-comunidad-desktop</icon>
+  <categories><category>Office</category></categories>
+  <developer id="ar.com.galateasoftware">
+    <name>Galatea Software</name>
+  </developer>
+  <url type="homepage">https://tropa.galateasoftware.com.ar/</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.2.5" date="2026-11-10"/>
+  </releases>
+</component>
