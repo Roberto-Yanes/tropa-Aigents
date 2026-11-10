@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='agentes-pkg-')as temp:
    if code:raise RuntimeError(err.decode())
  subprocess.run([str(mkbom),'-u','0','-g','80',str(root),str(t/'Bom')],check=True)
  info=plistlib.loads((app/'Contents/Info.plist').read_bytes());identifier=info['CFBundleIdentifier']
- pkg=ET.Element('pkg-info',{'format-version':'2','identifier':identifier+'.pkg','version':'0.1.0','install-location':'/Applications','auth':'root'})
+ pkg=ET.Element('pkg-info',{'format-version':'2','identifier':identifier+'.pkg','version':info['CFBundleShortVersionString'],'install-location':'/Applications','auth':'root'})
  ET.SubElement(pkg,'payload',{'installKBytes':str(size),'numberOfFiles':str(len(files)+1)})
  bv=ET.SubElement(pkg,'bundle-version');ET.SubElement(bv,'bundle',{'id':identifier,'CFBundleIdentifier':identifier,'path':'./'+app.name,'CFBundleVersion':info['CFBundleVersion']})
  (t/'PackageInfo').write_bytes(ET.tostring(pkg,encoding='utf-8',xml_declaration=True))

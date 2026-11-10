@@ -84,6 +84,7 @@ export class VisualBrowser extends EventEmitter {
   s.text=(await s.page.locator('body').innerText()).slice(0,12000);s.image=(await s.page.screenshot({type:'jpeg',quality:65})).toString('base64');s.touched=Date.now();
   return {url:s.url,title:await s.page.title(),text:s.text,elements,screenshot:s.image};
  }
+ pendingApprovals(){return [...this.sessions].filter(([,s])=>s.pending).map(([runId,s])=>({runId,pendingId:s.pending.id,action:s.pending.action,url:s.pending.url,agent:s.agent}));}
  state(id){const s=this.sessions.get(id);return s?{url:s.url,image:s.image,agent:s.agent,pending:s.pending?{id:s.pending.id,action:s.pending.action,url:s.pending.url}:null,history:s.history,actionCount:s.actionCount||0,open:!s.closed}:{open:false,history:[],actionCount:0};}
  async approval(s,action,signal){
   if(signal.aborted)throw Error('Ejecución cancelada.');

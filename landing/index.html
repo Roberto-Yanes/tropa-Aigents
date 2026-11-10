@@ -145,6 +145,7 @@ footer { border-top: 1px solid var(--line-soft); margin-top: 72px }
 .legal { border-top: 1px solid var(--line-soft); padding-block: 20px 32px; font-size: 13px; color: #8f8a9a }
 
 
+.download-note { max-width: 760px; margin: 0 0 20px; color: var(--muted, #a9a4b5); font-size: 13px; line-height: 1.6 }
 .downloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px 20px }
 .os { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 26px 24px; display: flex; flex-direction: column; gap: 20px }
 .os.current { border: 2px solid var(--accent) }
@@ -350,8 +351,8 @@ footer { border-top: 1px solid var(--line-soft); margin-top: 72px }
 <article class="agent"><svg class="av " width="104" height="104" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-lupa"></use></svg><div class="agent-body"><div class="agent-head"><h3>Lupa</h3><span>Investigador</span></div><p>Busca, lee y resume fuentes para que llegues a cada reunión con contexto.</p></div></article>
 <article class="agent"><svg class="av " width="104" height="104" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-tinta"></use></svg><div class="agent-body"><div class="agent-head"><h3>Tinta</h3><span>Redactor</span></div><p>Escribe correos, propuestas y publicaciones con tu tono.</p></div></article>
 <article class="agent"><svg class="av " width="104" height="104" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-datos"></use></svg><div class="agent-body"><div class="agent-head"><h3>Datos</h3><span>Analista</span></div><p>Cruza hojas de cálculo y te explica qué cambió y por qué.</p></div></article>
-<article class="agent"><svg class="av " width="104" height="104" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-bit"></use></svg><div class="agent-body"><div class="agent-head"><h3>Bit</h3><span>Desarrollador</span></div><p>Revisa código, abre tareas y automatiza lo repetitivo.</p></div></article>
-<article class="agent"><svg class="av " width="104" height="104" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-eco"></use></svg><div class="agent-body"><div class="agent-head"><h3>Eco</h3><span>Soporte</span></div><p>Responde a clientes en tus canales y te escala lo importante.</p></div></article>
+<article class="agent"><svg class="av " width="104" height="104" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-bit"></use></svg><div class="agent-body"><div class="agent-head"><h3>Bit</h3><span>Desarrollador</span></div><p>Revisa código y ayuda a automatizar tareas.</p></div></article>
+<article class="agent"><svg class="av " width="104" height="104" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-eco"></use></svg><div class="agent-body"><div class="agent-head"><h3>Eco</h3><span>Soporte</span></div><p>Prepara respuestas a consultas y señala cuándo hace falta una persona.</p></div></article>
 <article class="agent"><svg class="av " width="104" height="104" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-agenda"></use></svg><div class="agent-body"><div class="agent-head"><h3>Agenda</h3><span>Planificador</span></div><p>Ordena tareas, plazos y recordatorios de todo el equipo.</p></div></article>
 </div>
 </div>
@@ -373,7 +374,7 @@ footer { border-top: 1px solid var(--line-soft); margin-top: 72px }
 <div class="benefit"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#rz)"><circle cx="24" cy="24" r="18"></circle><path d="M24 13 v11 l8 5"></path></g></svg><h3>Trabajo local</h3><p>Los agentes trabajan mientras la aplicación y la computadora estén encendidas.</p></div>
 <div class="benefit"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#rz)"><path d="M38 20 a15 15 0 0 0 -27 -4 M10 28 a15 15 0 0 0 27 4"></path><path d="M11 8 v8 h8 M37 40 v-8 h-8"></path></g></svg><h3>Tareas programadas</h3><p>El resumen de cada lunes o el informe del cierre de mes, sin pedirlo.</p></div>
 <div class="benefit"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#rz)"><circle cx="16" cy="18" r="7"></circle><rect x="27" y="11" width="15" height="13" rx="4"></rect><path d="M4 40 c2 -8 8 -11 12 -11 s10 3 12 11 M28 40 c1 -6 5 -9 7 -9 s6 3 7 9"></path></g></svg><h3>Personas y agentes juntos</h3><p>Un mismo espacio para asignar, revisar y comentar.</p></div>
-<div class="benefit"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#rz)"><rect x="14" y="5" width="20" height="38" rx="5"></rect><path d="M21 37 h6 M40 14 q4 4 0 8 M43 10 q8 8 0 16"></path></g></svg><h3>Control desde tu computadora</h3><p>Revisa las tareas y autoriza las acciones desde la aplicación.</p></div>
+<div class="benefit"><svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" filter="url(#rz)"><rect x="14" y="5" width="20" height="38" rx="5"></rect><path d="M21 37 h6 M40 14 q4 4 0 8 M43 10 q8 8 0 16"></path></g></svg><h3>WhatsApp experimental</h3><p>Hablá con tu agente principal desde el teléfono mientras Tropa está activa.</p></div>
 </div>
 </div>
 </section>
@@ -382,21 +383,22 @@ footer { border-top: 1px solid var(--line-soft); margin-top: 72px }
 
 <section id="descargar" class="band"><div class="wrap section">
 <div class="sec-head"><span class="hand" style="color: var(--note)">Una app para tu computadora</span><h2>Descarga la app y empieza</h2><p>Instálala en tu ordenador y crea tu primer agente. Es gratis.</p></div>
+<p class="download-note">Versión actual: 0.2.1. Los instaladores de Windows y macOS aún no se probaron en esos sistemas; los de macOS no están firmados ni notarizados. Las cuentas de IA pueden tener sus propios costos.</p>
 <div class="downloads">
 <div class="os" data-os="win">
 <span class="tag os-tag">tu sistema</span>
-<div class="os-head"><svg class="av " width="64" height="64" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-bit"></use></svg><div><h3>Windows</h3><span class="os-meta">Versión de prueba · requisitos por confirmar</span></div></div>
-<div class="os-links"><span class="download-pending">Descarga disponible próximamente</span></div>
+<div class="os-head"><svg class="av " width="64" height="64" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-bit"></use></svg><div><h3>Windows</h3><span class="os-meta">Versión de prueba 0.2.1 · 64 bits</span></div></div>
+<div class="os-links"><a href="downloads/Tropa-AI-0.2.1-win-x64.exe" class="btn btn-primary dl-main"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="margin-right:8px;flex:0 0 auto"><path d="M12 4 v11 M7 10 l5 5 l5 -5 M5 19 h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Descargar .exe</a></div>
 </div>
 <div class="os" data-os="mac">
 <span class="tag os-tag">tu sistema</span>
-<div class="os-head"><svg class="av " width="64" height="64" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-musa"></use></svg><div><h3>macOS</h3><span class="os-meta">Versión de prueba · requisitos por confirmar</span></div></div>
-<div class="os-links"><span class="download-pending">Descarga disponible próximamente</span></div>
+<div class="os-head"><svg class="av " width="64" height="64" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-musa"></use></svg><div><h3>macOS</h3><span class="os-meta">Versión de prueba 0.2.1 · 64 bits</span></div></div>
+<div class="os-links"><a href="downloads/Tropa-AI-0.2.1-macos-arm64.pkg" class="btn btn-primary dl-main"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="margin-right:8px;flex:0 0 auto"><path d="M12 4 v11 M7 10 l5 5 l5 -5 M5 19 h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Apple Silicon (.pkg)</a><a href="downloads/Tropa-AI-0.2.1-macos-x64.pkg" class="btn btn-ghost">Intel (.pkg)</a></div>
 </div>
 <div class="os" data-os="linux">
 <span class="tag os-tag">tu sistema</span>
-<div class="os-head"><svg class="av " width="64" height="64" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-eco"></use></svg><div><h3>Linux</h3><span class="os-meta">Versión de prueba · requisitos por confirmar</span></div></div>
-<div class="os-links"><span class="download-pending">Descarga disponible próximamente</span></div>
+<div class="os-head"><svg class="av " width="64" height="64" viewBox="0 0 160 160" aria-hidden="true"><use href="#s-eco"></use></svg><div><h3>Linux</h3><span class="os-meta">Versión de prueba 0.2.1 · 64 bits</span></div></div>
+<div class="os-links"><a href="downloads/Tropa-AI-0.2.1-linux-amd64.deb" class="btn btn-primary dl-main"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="margin-right:8px;flex:0 0 auto"><path d="M12 4 v11 M7 10 l5 5 l5 -5 M5 19 h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>Descargar .deb</a></div>
 </div>
 </div>
 </div>
@@ -429,7 +431,7 @@ footer { border-top: 1px solid var(--line-soft); margin-top: 72px }
 <div class="col"><span>Empresa</span><a href="#">Sobre nosotros</a><a href="#contacto" id="contacto">Contacto</a><a href="#">Privacidad</a></div>
 </div>
 </div>
-<div class="wrap legal">© 2026 Tropa AI. Todos los derechos reservados.</div>
+<div class="wrap legal">© 2026 Tropa AI · Proyecto comunitario de código abierto.</div>
 </footer>
 
 <script>

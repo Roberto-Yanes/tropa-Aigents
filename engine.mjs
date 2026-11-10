@@ -16,7 +16,7 @@ export function validateTeam(value) {
   const name = string(value.name, 'Nombre', 80);
   if (!Array.isArray(value.agents) || value.agents.length < 1 || value.agents.length > 8) throw new Error('Un equipo debe tener entre 1 y 8 agentes.');
   const agents = value.agents.map(a => {
-    if (!providers.some(p => p.id === a.provider)) throw new Error('Proveedor desconocido.');
+    if (!providers.some(p => p.id === a.provider && p.supported !== false)) throw new Error('Proveedor desconocido o todavía no compatible.');
     const model = a.model || '';
     if (typeof model !== 'string' || model.length > 100 || /[\r\n]/.test(model)) throw new Error('Modelo inválido.');
     const tools = a.tools === true;
@@ -81,7 +81,7 @@ export class Engine extends EventEmitter {
       throw Error('Los agentes nuevos se agregan al final del equipo.');
     const isMain = id === this.mainTeamId();
     if (isMain && (body.agents.length !== 1 || from[0] !== 0)) throw Error('El agente principal es un solo agente: podés editarlo, no agregar ni quitar.');
-    if (isMain && !['codex', 'claude', 'kimi'].includes(body.agents[0].provider)) throw Error('Elegí una cuenta de IA real para el agente principal.');
+    if (isMain && !providers.some(p=>p.id===body.agents[0].provider&&p.id!=='demo'&&p.supported!==false)) throw Error('Elegí una cuenta de IA real para el agente principal.');
     const clean = validateTeam({ name: body.name, agents: body.agents.map(({ from: _from, ...a }) => a), browserAccess: team.browserAccess });
     const updated = { ...clean, id }, map = new Map();
     from.forEach((f, i) => { if (f !== null) map.set(f, i); });
@@ -116,7 +116,7 @@ export class Engine extends EventEmitter {
   createMain(body) {
     const existing=this.mainTeamId();
     if(existing){const team=this.teams().find(t=>t.id===existing);if(!team)throw Error('No se encuentra el agente coordinador guardado.');return team;}
-    if(!['codex','claude','kimi'].includes(body.provider))throw Error('Elegí una cuenta de IA real para el agente principal.');
+    if(!providers.some(p=>p.id===body.provider&&p.id!=='demo'&&p.supported!==false))throw Error('Elegí una cuenta de IA real para el agente principal.');
     const agent={name:body.name,provider:body.provider,instructions:'Sos el agente coordinador principal. Ayudá a organizar objetivos, aclarar prioridades y preparar trabajo para equipos y agentes. Sé claro sobre lo que podés ejecutar y no afirmes haber delegado o realizado tareas que no sucedieron.',avatar:'personajes-9'};
     const team=validateTeam({name:'Agente principal',agents:[agent]});
     this.db.exec('BEGIN IMMEDIATE');try{this.db.prepare('INSERT INTO teams VALUES (?, ?)').run(team.id,JSON.stringify(team));this.db.prepare("INSERT INTO settings VALUES ('mainTeamId', ?)").run(team.id);this.db.exec('COMMIT');}catch(e){this.db.exec('ROLLBACK');throw e;}return team;
@@ -147,9 +147,10 @@ export class Engine extends EventEmitter {
     const teams=this.teams(), team=teams.find(t=>t.id===teamId);
     if(!team||!Number.isInteger(index)||index<0||index>=team.agents.length)throw coded('Agente no encontrado.','AGENT_NOT_FOUND');
     try{message=string(message,'Mensaje',4000);}catch{throw coded('Mensaje: valor vacío o demasiado largo.','MESSAGE_INVALID');}
-    if(opts.channel!==undefined&&opts.channel!=='whatsapp')throw Error('Canal inválido.');
+    if(opts.channel!==undefined&&!['whatsapp','mobile'].includes(opts.channel))throw Error('Canal inválido.');
+    if(opts.deviceId!==undefined&&(opts.channel!=='mobile'||typeof opts.deviceId!=='string'||!/^[A-Za-z0-9_-]{8,64}$/.test(opts.deviceId)))throw Error('Dispositivo inválido.');
     if(opts.messageId!==undefined&&(opts.channel!=='whatsapp'||typeof opts.messageId!=='string'||!opts.messageId||opts.messageId.length>200))throw Error('Identificador de mensaje inválido.');
-    const channelSource=opts.channel?{channel:opts.channel,...(opts.messageId?{channelMessageId:opts.messageId}:{})}:{};
+    const channelSource=opts.channel?{channel:opts.channel,...(opts.messageId?{channelMessageId:opts.messageId}:{}),...(opts.deviceId?{deviceId:opts.deviceId}:{})}:{};
     const prior=this.chatRuns(teamId,index);if(prior.some(r=>['queued','running'].includes(r.status)))throw coded('Esperá a que termine la respuesta anterior.','CHAT_PENDING');
     const history=prior.filter(r=>r.status==='completed').slice(-10).map(r=>({persona:r.source.message,respuesta:r.steps.filter(x=>x.kind==='final').at(-1)?.output||r.steps.at(-1)?.output||''}));
     if(team.agents[index].provider==='demo'){const objective=`Conversación directa. Historial:\n${history.map(h=>`Persona: ${h.persona}\nRespuesta: ${h.respuesta}`).join('\n')}\nÚltimo mensaje: ${message}`;return this.startSnapshot({...team,agents:[team.agents[index]]},objective,{kind:'chat',teamId,index,message,...channelSource});}
@@ -194,7 +195,7 @@ export class Engine extends EventEmitter {
   teamChatRuns(teamId) {
     return this.db.prepare('SELECT body FROM runs ORDER BY rowid ASC').all().map(r=>JSON.parse(r.body)).filter(r=>r.source?.kind==='teamchat' && r.source.teamId===teamId);
   }
-  teamChat(teamId, message, index=0) {
+  teamChat(teamId, message, index=0, opts={}) {
     const team=this.teams().find(t=>t.id===teamId);
     if(!team||teamId===this.mainTeamId())throw Error('Elegí un equipo con agentes para colaborar.');
     if(!Number.isInteger(index)||index<0||index>=team.agents.length)throw Error('Elegí un integrante del equipo.');
@@ -203,7 +204,7 @@ export class Engine extends EventEmitter {
     message=string(message,'Mensaje',4000);
     const history=previous.filter(r=>r.status==='completed').slice(-6).map(r=>({persona:r.source.message,respuesta:r.steps.filter(x=>x.kind==='final').at(-1)?.output||''}));
     const participants=team.agents.map((agent,i)=>({agent,teamId:team.id,index:i,teamName:team.name,browserAccess:team.browserAccess}));
-    return this.startSnapshot({...team,agents:[team.agents[index]]},message,{kind:'teamchat',mode:'direct-collab',teamId,index,message,history,participants,stack:[{participant:index,request:message}],calls:0});
+    return this.startSnapshot({...team,agents:[team.agents[index]]},message,{kind:'teamchat',mode:'direct-collab',teamId,index,message,history,participants,stack:[{participant:index,request:message}],calls:0,...(opts.channel==='mobile'&&typeof opts.deviceId==='string'&&/^[A-Za-z0-9_-]{8,64}$/.test(opts.deviceId)?{channel:'mobile',deviceId:opts.deviceId}:{})});
   }
   // Flows: each step snapshots its own team, so Google and navegador permissions follow the team that does the work.
   startFlow(flow, source) {

@@ -1,0 +1,13 @@
+{
+  "name": "tropa-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=22" },
+  "scripts": { "start": "node relay/server.mjs" },
+  "dependencies": {
+    "tweetnacl": "1.0.3",
+    "ws": "8.22.1"
+  }
+}

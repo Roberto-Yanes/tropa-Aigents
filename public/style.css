@@ -47,3 +47,12 @@ select{color-scheme:dark} select option,select optgroup{background-color:#242428
 .flow-approval{border:1px solid #f08a8a66;background:#2a1f22;border-radius:12px;padding:16px}
 .flow-approval h3{margin:0 0 8px;font-size:14px}
 .step-badge{margin-left:8px}
+
+/* Teléfonos vinculados */
+.inline-form{display:flex;gap:8px;margin-top:10px}.inline-form input{flex:1;min-width:0}
+.phone-qr img{display:block;background:#fff;padding:10px;border-radius:12px;margin:12px 0}
+.phone-code{font-size:34px;font-weight:700;letter-spacing:6px;margin:14px 0;font-variant-numeric:tabular-nums}
+.phone-confirm{border:1px solid #8b5cf666}
+.device-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a2830}.device-row>div{flex:1}.device-row p{margin:0}
+.device-dot{width:9px;height:9px;border-radius:50%;background:#555;flex-shrink:0}.device-dot.on{background:#3fbf7f}
+.relay-url{font-family:ui-monospace,monospace;font-size:12px;color:#aaa}

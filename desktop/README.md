@@ -19,3 +19,11 @@ El constructor .pkg usa formato XAR, un archivo BOM y un payload CPIO ODC; la co
 Las dependencias del motor se copian explícitamente mediante after-pack.cjs, ya que el filtro de recursos de electron-builder excluye node_modules. La prueba smoke-backend.mjs exige que esas dependencias estén incluidas y debe ejecutarse desde un paquete extraído fuera del árbol de desarrollo.
 
 Para generar el EXE desde Linux sin Wine: preparar win32/x64, ejecutar electron-builder --win --x64 --dir y compilar desktop/installer.nsi con makensis. El instalador gráfico incluye un desinstalador y conserva los datos de usuario.
+
+## Versiones y actualizaciones
+
+La aplicación consulta el manifiesto HTTPS `https://galateasoftware.com.ar/tropa/releases/latest.json` al abrir y desde Actualizaciones. Compara versiones estables `mayor.menor.parche` y ofrece el instalador correspondiente a su sistema y arquitectura. La persona descarga e instala la actualización manualmente; no hay descarga ni instalación silenciosa. Los instaladores publicados antes de incorporar esta función no pueden avisar de una nueva versión y deben actualizarse manualmente una primera vez.
+
+Para publicar una nueva versión: actualizar la versión en `package.json`, `package-lock.json`, `desktop/package.json` y `desktop/package-lock.json`; construir y probar los instaladores en sus sistemas; subirlos a `/tropa/downloads/`; verificar que se descargan; y recién entonces actualizar `landing/releases/latest.json` y publicar ese archivo en `/tropa/releases/latest.json`. La versión en ambos package.json debe coincidir: `prepare.py` comprueba esa condición. Al usar el instalador NSIS alternativo, pasar `/DAPP_VERSION=x.y.z` a makensis; el constructor PKG toma la versión del bundle. No ofrecer en el manifiesto instaladores que no estén disponibles.
+
+El servidor HTTPS y el manifiesto son el canal de confianza; este mecanismo no verifica firmas ni hashes de los instaladores, y los binarios actuales de Windows y macOS no están firmados. Antes de habilitar actualizaciones automáticas o distribuir versiones de producción se necesita firma de código y pruebas en cada plataforma.

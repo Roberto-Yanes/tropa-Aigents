@@ -1,5 +1,8 @@
 import {GoogleSession} from './google-connectors.mjs';
+import {checkUpdates,installedVersion} from './updates.mjs';
 import {WhatsAppService} from './channels/whatsapp-service.mjs';
+import {MobileGateway} from './mobile/gateway.mjs';
+import QRCode from 'qrcode';
 import {linuxGoogleVault} from './google-vault.mjs';
 import {connectorCatalog} from './connectors.mjs';
 import http from 'node:http';
@@ -17,7 +20,7 @@ import { Engine } from './engine.mjs';
 import { inspectProviders, providers } from './providers.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
-export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectProviders, googleSession, providerRunner=runProvider, whatsappService, onChannelStatus=()=>{}, onAutostart } = {}) {
+export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectProviders, googleSession, providerRunner=runProvider, whatsappService, mobileGateway, onChannelStatus=()=>{}, onAutostart } = {}) {
   let server;
   const google=googleSession||new GoogleSession({vault:process.platform==='linux'?linuxGoogleVault(dir):null}), googleKeys=new Map();
   const browsers=new VisualBrowser(()=>`http://127.0.0.1:${server.address().port}`,join(dir,'internal-browser-profile'));
@@ -47,8 +50,11 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
   engine.on('run',e=>{if(['completed','failed','cancelled','interrupted','waiting'].includes(e.status))browsers.releaseInternal(e.id);if(['completed','failed','cancelled','interrupted'].includes(e.status))browsers.retire(e.id).catch(()=>{});});
   const whatsapp=whatsappService||new WhatsAppService({engine,browser:browsers,dir,onStatus:onChannelStatus,onAutostart});
   whatsapp.restore?.().catch(()=>{});
+  // Phones reach this computer only through the relay with end-to-end encryption; the local API is never exposed.
+  const mobile=mobileGateway||new MobileGateway({engine,operations,browser:browsers,dir});
+  mobile.start?.();
   const timer = setInterval(()=>operations.tick(),1000); timer.unref();
-  const closeEngine=engine.close.bind(engine); engine.close=async()=>{clearInterval(timer);google.close?.();googleKeys.clear();await Promise.race([whatsapp.stop(),new Promise(resolve=>setTimeout(resolve,1000))]);await closeEngine();await browsers.closeAll();};
+  const closeEngine=engine.close.bind(engine); engine.close=async()=>{clearInterval(timer);google.close?.();googleKeys.clear();await Promise.race([whatsapp.stop(),new Promise(resolve=>setTimeout(resolve,1000))]);await mobile.stop?.();await closeEngine();await browsers.closeAll();};
   const token = randomBytes(32).toString('hex');
   server = http.createServer(async (req, res) => {
     await google.ready;
@@ -100,7 +106,7 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
         const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));return send(200,await browsers.call(key,body.name,body.args));
       }
       if(req.method==='GET'&&/^\/avatars\/(formas|lapiz|garabatos|personajes)\.png$/.test(path)){res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'});res.end(await readFile(join(root,'public',path)));return;}
-      if(req.method==='GET'&&/^\/icons\/(kimi|gemini|deepseek|mistral|ollama|perplexity|meta)\.svg$/.test(path)){res.writeHead(200,{'Content-Type':'image/svg+xml','Cache-Control':'public, max-age=86400'});res.end(await readFile(join(root,'public',path)));return;}
+      if(req.method==='GET'&&/^\/icons\/(kimi|gemini|deepseek|mistral|ollama|lmstudio|perplexity|meta)\.svg$/.test(path)){res.writeHead(200,{'Content-Type':'image/svg+xml','Cache-Control':'public, max-age=86400'});res.end(await readFile(join(root,'public',path)));return;}
       if (req.method === 'GET' && ['/', '/app.js', '/style.css', '/avatars.css', '/tropa-animaciones.css', '/tropa-animation.js', '/tropa-icon.png'].includes(path)) {
         if (path === '/') res.setHeader('Set-Cookie', `session=${token}; HttpOnly; SameSite=Strict; Path=/`);
         const file = path === '/' ? 'index.html' : path.slice(1);
@@ -125,8 +131,10 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
         res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name.split('/').pop())}`});res.end(bytes);return;
       }
       if (req.method === 'GET' && path === '/api/usage') return send(200,Object.fromEntries(await Promise.all(providers.filter(p=>p.id!=='demo').map(async p=>[p.id,await readUsage(p.id)]))));
+      if (req.method === 'GET' && path === '/api/updates') {try{return send(200,await checkUpdates());}catch{return send(200,{currentVersion:await installedVersion(),error:'No se pudo comprobar la versión. Revisá tu conexión e intentá nuevamente.'});}}
       if (req.method === 'GET' && path === '/api/connectors') return send(200,connectorCatalog.map(c=>['gmail','google-calendar'].includes(c.id)?{...c,status:'available',connection:google.status()}:c));
       if(req.method==='GET'&&path==='/api/google/status')return send(200,google.status());
+      if(req.method==='GET'&&path==='/api/mobile/status')return send(200,mobile.status());
       if(req.method==='GET'&&path==='/api/whatsapp/status')return send(200,whatsapp.status());
       if(req.method==='GET'&&path==='/api/whatsapp/qr')return send(200,await whatsapp.qrState());
       if(req.method==='GET'&&path==='/api/whatsapp/owner-code')return send(200,whatsapp.ownerCode());
@@ -138,6 +146,11 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
       let chunks = [], size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > 100000) return send(413, { error: 'Solicitud demasiado grande.' }); chunks.push(chunk); }
       const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      if(path==='/api/mobile/invite'){const invite=mobile.createInvite();return send(200,{...invite,qrSvg:await QRCode.toString(invite.link,{type:'svg',margin:1,errorCorrectionLevel:'M'})});}
+      if(path==='/api/mobile/confirm'){if(typeof body.accept!=='boolean')throw Error('Decisión inválida.');return send(200,mobile.confirmPairing(body.accept));}
+      if(path==='/api/mobile/settings'){if(body.relayUrl!==undefined&&typeof body.relayUrl!=='string')throw Error('Dirección inválida.');mobile.setRelayUrl((body.relayUrl||'').trim());return send(200,mobile.status());}
+      const mobileRevoke=path.match(/^\/api\/mobile\/devices\/([A-Za-z0-9_-]{8,64})\/revoke$/);
+      if(mobileRevoke)return send(200,mobile.revoke(mobileRevoke[1]));
       if(path==='/api/whatsapp/link')return send(200,await whatsapp.link(body));
       if(path==='/api/whatsapp/retry')return send(200,await whatsapp.retry());
       if(path==='/api/whatsapp/settings')return send(200,await whatsapp.settings(body));
@@ -176,7 +189,7 @@ export function createApp({ dir = join(root, 'data'), invoke, inspect = inspectP
       return send(404, { error: 'Ruta no encontrada.' });
     } catch (e) { if (res.headersSent) { res.destroy(); return; } send(400, { error: e instanceof SyntaxError ? 'JSON inválido.' : e.message }); }
   });
-  return { server, engine };
+  return { server, engine, mobile };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

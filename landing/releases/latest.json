@@ -1,0 +1,9 @@
+{
+  "version": "0.2.1",
+  "installers": {
+    "linux-x64": "Tropa-AI-0.2.1-linux-amd64.deb",
+    "win32-x64": "Tropa-AI-0.2.1-win-x64.exe",
+    "darwin-arm64": "Tropa-AI-0.2.1-macos-arm64.pkg",
+    "darwin-x64": "Tropa-AI-0.2.1-macos-x64.pkg"
+  }
+}

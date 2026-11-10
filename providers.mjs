@@ -1,4 +1,5 @@
 import {nativeCommand} from './native-command.mjs';
+import {localModels,runLocal} from './local-providers.mjs';
 import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -8,6 +9,9 @@ export const providers = [
   { id: 'codex', name: 'Codex · cuenta ChatGPT', login: 'codex login', detail: 'Usa tu sesión de ChatGPT en Codex. Podés habilitar búsqueda web y escritura en la carpeta de trabajo por agente.' },
   { id: 'claude', name: 'Claude Code · cuenta propia', login: 'claude auth login', detail: 'Usa tu sesión de Claude. Con herramientas habilitadas, puede consultar páginas y trabajar con archivos en modo restringido.' },
   { id: 'kimi', name: 'Kimi Code · cuenta propia', login: 'kimi login', detail: 'Usa la sesión de Kimi Code instalada en esta computadora, sin pedir una clave API.' },
+  { id: 'ollama', name: 'Ollama · modelos locales', login: '', detail: 'Detecta los modelos del servidor local de Ollama en el puerto 11434. No requiere cuenta.' },
+  { id: 'lmstudio', name: 'LM Studio · modelos locales', login: '', detail: 'Detecta los modelos del servidor local de LM Studio en el puerto 1234. Activá su servidor desde LM Studio.' },
+  { id: 'gemini', name: 'Gemini CLI', login: '', supported: false, detail: 'Se detecta la instalación de Gemini CLI. La conexión para ejecutar agentes todavía está en desarrollo.' },
   { id: 'demo', name: 'Demostración · sin IA', login: '', detail: 'Respuestas simuladas para comprobar el flujo. No consume cuotas.' }
 ];
 
@@ -89,8 +93,13 @@ export async function inspectKimiAccount() {
 export async function inspectProviders() {
   return Promise.all(providers.map(async p => {
     if (p.id === 'demo') return { ...p, installed: true, version: 'Simulación' };
+    if(['ollama','lmstudio'].includes(p.id)){
+      try{const models=await localModels(p.id);return {...p,installed:true,version:models.length?`${models.length} modelo(s) disponible(s)`:'Sin modelos disponibles',models,accountState:models.length?'connected':'disconnected',accountLabel:models.length?'Servidor local disponible':'Sin modelos disponibles'};}
+      catch{return {...p,installed:false,version:'',accountState:'unknown',accountLabel:'Servidor local no detectado'};}
+    }
     try {
       const version = await processCall(p.id, ['--version'], { timeout: 8000 });
+      if(p.supported===false)return {...p,installed:true,version:version.trim().slice(0,120),accountState:'unknown',accountLabel:'Detectado · integración pendiente'};
       let accountState = 'unknown', accountLabel = 'Sesión sin comprobar';
       try {
         if(p.id==='codex') {
@@ -111,6 +120,7 @@ export async function inspectProviders() {
 }
 
 export async function runProvider(agent, prompt, cwd, signal, browserAccess, googleAccess) {
+  if(['ollama','lmstudio'].includes(agent.provider))return runLocal(agent.provider,agent,prompt,signal);
   if (agent.provider === 'demo') {
     await new Promise((resolve, reject) => {
       const abort = () => { clearTimeout(t); reject(new Error('Ejecución cancelada.')); };

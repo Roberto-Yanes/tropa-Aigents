@@ -1,6 +1,9 @@
 from pathlib import Path
-import sys,shutil,hashlib,urllib.request,tarfile,zipfile,subprocess
+import sys,shutil,hashlib,urllib.request,tarfile,zipfile,subprocess,json
 root=Path(__file__).resolve().parent.parent
+backend_version=json.loads((root/'package.json').read_text())['version']
+desktop_version=json.loads((root/'desktop/package.json').read_text())['version']
+if backend_version != desktop_version:raise ValueError('Las versiones de package.json y desktop/package.json deben coincidir')
 platform,arch=sys.argv[1:3];assert platform in ('linux','win32','darwin');assert arch in ('x64','arm64')
 stage=root/'desktop/stage'
 if stage.exists():shutil.rmtree(stage)
@@ -8,8 +11,7 @@ backend=stage/'backend';backend.mkdir(parents=True)
 for f in root.glob('*.mjs'):shutil.copy2(f,backend/f.name)
 shutil.copy2(root/'google-vault.py',backend/'google-vault.py')
 for name in ['package.json','package-lock.json','LICENSE','browser-extension.zip']:shutil.copy2(root/name,backend/name)
-for name in ['public','browser-extension']:shutil.copytree(root/name,backend/name)
-shutil.copytree(root/'channels',backend/'channels')
+for name in ['public','browser-extension','channels','mobile','protocol']:shutil.copytree(root/name,backend/name)
 subprocess.run([shutil.which('npm') or 'npm','ci','--omit=dev','--no-audit','--no-fund','--os='+platform,'--cpu='+arch],cwd=backend,check=True)
 nodeplatform='win' if platform=='win32' else platform
 filename=f'node-v24.22.1-{nodeplatform}-{arch}'+('.zip'if platform=='win32'else'.tar.gz')

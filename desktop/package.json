@@ -1,18 +1,19 @@
 {
   "name": "agentes-comunidad-desktop",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "description": "Equipos de agentes con tus cuentas de IA",
-  "author": "Comunidad Agentes",
+  "author": "Tropa AI",
   "private": true,
   "license": "Apache-2.0",
   "main": "main.cjs",
   "devDependencies": {
     "electron": "45.2.3",
-    "electron-builder": "26.18.0"
+    "electron-builder": "26.18.0",
+    "resedit": "^1.7.2"
   },
   "build": {
     "appId": "org.comunidad.agentes",
-    "productName": "Agentes Comunidad",
+    "productName": "Tropa AI",
     "asar": true,
     "directories": {
       "output": "../release-native"
@@ -38,7 +39,7 @@
         "AppImage"
       ],
       "category": "Office",
-      "maintainer": "Comunidad Agentes",
+      "maintainer": "Tropa AI",
       "icon": "icons/icon.png"
     },
     "win": {
@@ -66,7 +67,7 @@
     "dmg": {
       "sign": false
     },
-    "artifactName": "Agentes-Comunidad-${version}-${os}-${arch}.${ext}",
+    "artifactName": "Tropa-AI-${version}-${os}-${arch}.${ext}",
     "afterPack": "after-pack.cjs"
   },
   "homepage": "http://127.0.0.1:4318",
